@@ -4,7 +4,7 @@
 
 `3TorusAsteroids` is a split-screen 3D reinterpretation of Asteroids set inside a wireframe cube whose opposite faces are identified as a 3-torus. The left pane shows the external cube view, while the right pane shows the toroidal first-person view with repeated copies of the world across identified faces.
 
-Created by David Bachman with GPT-5 Codex
+Created by David Bachman with GPT-5.4
 
 To learn more about David Bachman and his work visit https://pzacad.pitzer.edu/~dbachman/ and subscribe to his AI substack *Entropy Bonus* at https://profbachman.substack.com
 
