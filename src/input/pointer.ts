@@ -14,7 +14,7 @@ export class PointerSteering {
 
   private readonly move = (event: PointerEvent) => {
     if (event.pointerType === 'touch' || !this.enabled() ||
-      (event.target instanceof Element && event.target.closest('button,.game-panel,.help'))) {
+      (event.target instanceof Element && event.target.closest('button,select,.game-panel,.help'))) {
       this.reset(); return;
     }
     const rect = this.viewport.getBoundingClientRect();

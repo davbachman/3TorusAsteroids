@@ -74,3 +74,7 @@ h1 { font-size:24px; margin:0 0 14px; }
   .geometry-choices label { padding:6px; margin:4px 0; font-size:11px; }
   .game-panel .geometry-description { display:none; }
 }
+
+.external-model { position:absolute; transform:translate(-50%,-100%); display:flex; align-items:center; gap:8px; padding:3px 6px; background:rgba(0,0,0,.85); font-size:12px; white-space:nowrap; }
+.external-model select { min-width:0; min-height:40px; padding:6px; border:1px solid #777; border-radius:4px; background:#111; color:white; font:inherit; cursor:pointer; }
+.external-model select:focus-visible { outline:2px solid white; outline-offset:2px; }

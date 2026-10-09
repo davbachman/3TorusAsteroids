@@ -1,6 +1,7 @@
 import { GeometryId, GEOMETRY_LABELS } from '../geometry/types';
 import { GameState } from '../game/state';
 import { Viewport } from './layout';
+import { DEFAULT_HYPERBOLIC_MODEL, HyperbolicModel } from './externalModel';
 
 export interface HudActions {
   press: (code: string) => void;
@@ -8,6 +9,7 @@ export interface HudActions {
   release: (pointerId: number) => void;
   fullscreen: () => void;
   mute: () => boolean;
+  externalModel: (model: HyperbolicModel) => void;
   povEdges: (visible: boolean) => void;
   geometry: (geometry:GeometryId) => void;
   menu: () => void;
@@ -20,6 +22,7 @@ export class HudRenderer {
   private readonly announcement = document.createElement('p');
   private readonly externalLabel = document.createElement('div');
   private readonly povLabel = document.createElement('div');
+  private readonly modelControl = document.createElement('label');
   private readonly reticle = document.createElement('div');
   private readonly divider = document.createElement('div');
   private readonly stats: HTMLElement;
@@ -64,6 +67,10 @@ export class HudRenderer {
     this.announcement.setAttribute('aria-atomic', 'true');
     this.externalLabel.className = this.povLabel.className = 'pane-label';
     this.externalLabel.textContent = 'EXTERNAL VIEW'; this.povLabel.textContent = 'TORUS POV';
+    this.modelControl.className = 'external-model';
+    this.modelControl.hidden = true;
+    this.modelControl.innerHTML = `<span data-model-label>Model</span><select aria-label="External hyperbolic model"><option value="klein">Klein</option><option value="poincare">Poincaré ball</option></select>`;
+    this.modelControl.querySelector('select')!.value = DEFAULT_HYPERBOLIC_MODEL;
     this.reticle.className = 'reticle'; this.reticle.setAttribute('aria-hidden', 'true');
     this.divider.className = 'pane-divider';
     this.touch.className = 'touch-controls'; this.touch.setAttribute('aria-label', 'Touch flight controls');
@@ -73,7 +80,7 @@ export class HudRenderer {
       <button type="button" data-hold="ArrowRight" aria-label="Turn right">→</button></div>
       <button type="button" data-hold="KeyZ">Thrust</button><button type="button" data-fire>Fire</button>`;
     wrapper.append(this.toolbar, this.touch, this.announcement);
-    viewport.append(this.externalLabel, this.povLabel, this.divider, this.reticle, this.panel);
+    viewport.append(this.externalLabel, this.povLabel, this.divider, this.reticle, this.modelControl, this.panel);
     const options = { signal: this.abort.signal };
     // Pointer activation must not leave toolbar controls consuming flight keys.
     // Keyboard activation (detail === 0) keeps focus for native accessibility.
@@ -81,6 +88,16 @@ export class HudRenderer {
       if (event.detail === 0 || !(event.target instanceof Element)) return;
       const control = event.target.closest<HTMLElement>('button,summary,input');
       if (control === document.activeElement) control?.blur();
+    }, options);
+    const modelSelect = this.modelControl.querySelector('select')!;
+    let pointerSelection = false;
+    modelSelect.addEventListener('pointerdown', () => { pointerSelection = true; }, options);
+    modelSelect.addEventListener('keydown', () => { pointerSelection = false; }, options);
+    modelSelect.addEventListener('change', () => {
+      const model = modelSelect.value;
+      if (model === 'klein' || model === 'poincare') this.actions?.externalModel(model);
+      if (pointerSelection) modelSelect.blur();
+      pointerSelection = false;
     }, options);
     this.panel.querySelector('[data-menu]')!.addEventListener('click',()=>this.actions?.menu(),options);
     this.choices.addEventListener('change',event=>{const target=event.target as HTMLInputElement;if(target.value==='euclidean'||target.value==='hyperbolic'||target.value==='spherical')this.actions?.geometry(target.value);},options);
@@ -114,6 +131,9 @@ export class HudRenderer {
     for (const [label, rect] of [[this.externalLabel, external], [this.povLabel, pov]] as const) {
       label.style.left = `${rect.x + rect.width / 2}px`; label.style.top = `${rect.y + 10}px`;
     }
+    this.modelControl.style.left = `${external.x + external.width / 2}px`;
+    this.modelControl.style.top = `${external.y + external.height - 8}px`;
+    this.modelControl.style.maxWidth = `${external.width - 16}px`;
     this.reticle.style.left = `${pov.x + pov.width / 2}px`; this.reticle.style.top = `${pov.y + pov.height / 2}px`;
     const stacked = pov.y > 0;
     this.divider.style.cssText = stacked
@@ -133,6 +153,9 @@ export class HudRenderer {
     // touch and keyboard activation). Geometry only changes from the menu.
     if (this.geometry !== state.geometry) {
       this.geometry = state.geometry;
+      this.modelControl.hidden = state.geometry === 'euclidean';
+      this.modelControl.querySelector('select')!.hidden = state.geometry !== 'hyperbolic';
+      this.modelControl.querySelector('[data-model-label]')!.textContent = state.geometry === 'spherical' ? 'Stereographic model' : 'Model';
       this.panel.querySelector<HTMLInputElement>(`[value="${state.geometry}"]`)!.checked = true;
       this.povLabel.textContent = state.geometry === 'spherical' ? 'SPHERICAL POV' : state.geometry === 'hyperbolic' ? 'HYPERBOLIC POV' : 'TORUS POV';
       const description = state.geometry === 'spherical'

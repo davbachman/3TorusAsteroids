@@ -4,6 +4,7 @@ import * as Spherical from "../geometry/spherical";
 import { ASTEROID_STAGES, AsteroidSize, GameState, getAsteroidSolid } from "../game/state";
 import { Quat, Vec3, lengthVec3, quatIdentity, v3 } from "../utils/math";
 import { AsteroidGeometry } from "./entityViews";
+import { HyperbolicModel, subdivideGeodesicEdges } from "./externalModel";
 
 type CurvedSpace = typeof Hyper | typeof Spherical;
 
@@ -12,6 +13,10 @@ attribute vec4 h0; attribute vec4 h1; attribute vec4 h2; attribute vec4 h3;
 attribute vec4 sizeInk;
 uniform float curvatureRadius;
 uniform bool spherical; uniform bool pov;
+uniform bool conformalModel;
+#ifdef CURVED_EXTERNAL
+attribute vec3 edgeEnd; attribute float edgeT;
+#endif
 varying vec4 spherePoint;
 varying float distanceH; varying float ink;
 #include <clipping_planes_pars_vertex>
@@ -21,11 +26,21 @@ void main() {
   float sh=spherical?sin(r):(exp(r)-exp(-r))*0.5;
   float ch=spherical?cos(r):(exp(r)+exp(-r))*0.5;
   vec4 local=vec4(tangent*(r>0.00001?sh/r:1.0),ch);
+  #ifdef CURVED_EXTERNAL
+    vec3 endTangent=edgeEnd*sizeInk.xyz/curvatureRadius;
+    float endR=length(endTangent);
+    float endSh=spherical?sin(endR):(exp(endR)-exp(-endR))*0.5;
+    float endCh=spherical?cos(endR):(exp(endR)+exp(-endR))*0.5;
+    vec4 endLocal=vec4(endTangent*(endR>0.00001?endSh/endR:1.0),endCh);
+    local=mix(local,endLocal,edgeT);
+    local/=sqrt(max(0.0000001,local.w*local.w+(spherical?1.0:-1.0)*dot(local.xyz,local.xyz)));
+  #endif
   vec4 point=mat4(h0,h1,h2,h3)*local;
   spherePoint=point;
   distanceH=log(max(1.0,point.w)+sqrt(max(0.0,point.w*point.w-1.0)));
   ink=sizeInk.w;
   vec3 projected=curvatureRadius*point.xyz/point.w;
+  if(conformalModel) projected=curvatureRadius*point.xyz/(point.w+1.0);
   if(spherical && pov) projected=point.xyz;
   vec4 mvPosition=modelViewMatrix*vec4(projected,1.0);
   gl_Position=projectionMatrix*mvPosition;
@@ -36,11 +51,23 @@ void main() {
 }`;
 const FRAGMENT_SHADER = `
 uniform float horizon; uniform float surface;
+#ifdef CURVED_EXTERNAL
+uniform bool clipDomain;
+uniform vec3 faceNormals[12]; uniform float faceOffset;
+#endif
 varying vec4 spherePoint;
 varying float distanceH; varying float ink;
 #include <clipping_planes_pars_fragment>
 void main() {
-  #include <clipping_planes_fragment>
+  #ifdef CURVED_EXTERNAL
+    // Test the original homogeneous half-spaces before model projection.
+    // This clips against the curved conformal faces as well as flat Klein faces.
+    if(clipDomain) for(int i=0;i<12;i++) {
+      if(dot(faceNormals[i],spherePoint.xyz)>faceOffset*spherePoint.w) discard;
+    }
+  #else
+    #include <clipping_planes_fragment>
+  #endif
   #ifdef SPHERICAL_POV
     float angle=acos(clamp(normalize(spherePoint).w,-1.0,1.0));
     if(angle<0.0004) discard;
@@ -74,10 +101,8 @@ class CurvedBatch {
     material: THREE.ShaderMaterial,
     faces = false,
   ) {
-    this.geometry.setAttribute(
-      "position",
-      base.getAttribute("position").clone(),
-    );
+    for (const name of Object.keys(base.attributes))
+      this.geometry.setAttribute(name, base.getAttribute(name).clone());
     if (base.index) this.geometry.setIndex(base.index.clone());
     this.bind();
     this.object = faces
@@ -148,18 +173,22 @@ function material(
   pov = false,
 ): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
-    defines: spherical && pov ? { SPHERICAL_POV: 1 } : {},
+    defines: spherical && pov ? { SPHERICAL_POV: 1 } : !pov ? { CURVED_EXTERNAL: 1 } : {},
     uniforms: {
       curvatureRadius: { value: spherical ? Spherical.CURVATURE_RADIUS : Hyper.CURVATURE_RADIUS },
       spherical: { value: spherical },
       pov: { value: pov },
+      conformalModel: { value: spherical && !pov },
+      clipDomain: { value: planes.length > 0 },
+      faceNormals: { value: Hyper.FACE_NORMALS.map(n => new THREE.Vector3(n.x,n.y,n.z)) },
+      faceOffset: { value: spherical ? Spherical.FACE_OFFSET : Hyper.FACE_OFFSET },
       horizon: { value: horizon },
       surface: { value: surface ? 1 : 0 },
     },
     vertexShader: VERTEX_SHADER,
     fragmentShader: FRAGMENT_SHADER,
     clipping: true,
-    clippingPlanes: planes,
+    clippingPlanes: [],
     side: THREE.DoubleSide,
     depthWrite: surface,
     polygonOffset: surface,
@@ -223,11 +252,13 @@ export class CurvedScene {
     this.externalMaterial = material(false, 0, planes, spherical);
     this.lineMaterial = material(false, this.horizon, [], spherical, true);
     this.faceMaterial = material(true, this.horizon, [], spherical, true);
+    const exteriorEdges = subdivideGeodesicEdges(this.edges);
     this.exteriorCell = new CurvedBatch(
       this.external,
-      this.edges,
+      exteriorEdges,
       this.boundaryMaterial,
     );
+    exteriorEdges.dispose();
     this.exteriorCell.begin();
     this.exteriorCell.append(H.IDENTITY, 1, 0.7);
     this.exteriorCell.finish();
@@ -237,10 +268,9 @@ export class CurvedScene {
       edges: THREE.BufferGeometry,
       solid?: THREE.BufferGeometry,
     ) => {
-      this.externalBatches.set(
-        key,
-        new CurvedBatch(this.external, edges, this.externalMaterial),
-      );
+      const exterior = subdivideGeodesicEdges(edges);
+      this.externalBatches.set(key, new CurvedBatch(this.external, exterior, this.externalMaterial));
+      exterior.dispose();
       this.povBatches.set(key, {
         lines: new CurvedBatch(this.pov, edges, this.lineMaterial),
         faces: solid
@@ -255,6 +285,12 @@ export class CurvedScene {
       const g = getAsteroid(size);
       add(getAsteroidSolid(size), g.edges, g.solid);
     }
+  }
+
+  setExternalModel(model: HyperbolicModel): void {
+    if (this.space !== Hyper) return;
+    this.externalMaterial.uniforms.conformalModel.value = model === 'poincare';
+    this.boundaryMaterial.uniforms.conformalModel.value = model === 'poincare';
   }
 
   update(state: GameState, camera: THREE.PerspectiveCamera, showDomainEdges = true): void {

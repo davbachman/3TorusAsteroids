@@ -138,3 +138,30 @@ for (const geometry of ['euclidean', 'hyperbolic', 'spherical'] as const) {
     await expect(help).toHaveAttribute('open');
   });
 }
+
+test('external model selector works on desktop and mobile without consuming fire after pointer selection',async({page})=>{
+  await load(page);
+  const model=page.getByRole('combobox',{name:'External hyperbolic model'});
+  await expect(model).toBeHidden();
+  await page.locator('input[value="hyperbolic"]').check();await start(page);
+  await expect(model).toHaveValue('poincare');
+  for(const size of [{width:1280,height:720},{width:390,height:844},{width:844,height:390}]) {
+    await page.setViewportSize(size);
+    // ResizeObserver updates the pane overlay on the next rendering turn.
+    await expect.poll(async()=>{
+      const rect=(await model.boundingBox())!;
+      return rect.x>=0 && rect.y>=0 && rect.x+rect.width<=size.width && rect.y+rect.height<=size.height;
+    }).toBe(true);
+    await model.focus();
+    await model.dispatchEvent('pointerdown',{pointerType:'mouse'});
+    await model.selectOption('klein');
+    await expect(model).not.toBeFocused();
+    await page.keyboard.press('Space');await advance(page);
+    expect((await state(page)).bullets.length).toBeGreaterThan(0);
+    await model.selectOption('poincare');await advance(page,300);
+  }
+  await page.getByRole('button',{name:'Pause',exact:true}).click();await advance(page);
+  await page.getByRole('button',{name:'Change geometry / new game',exact:true}).click();
+  await page.locator('input[value="spherical"]').check();await expect(model).toBeHidden();
+  await page.locator('input[value="hyperbolic"]').check();await expect(model).toHaveValue('poincare');
+});

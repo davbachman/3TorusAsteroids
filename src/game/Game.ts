@@ -38,6 +38,7 @@ export class Game {
       press: code => this.input.press(code), hold: (code, id) => this.input.hold(code, id),
       release: id => this.input.release(id), fullscreen: () => { void this.scene.toggleFullscreen(); },
       mute: () => this.audio.toggleMute(),
+      externalModel: model => { this.scene.setExternalModel(model); this.render(); },
       povEdges: visible => { this.scene.setPovDomainEdges(visible); this.render(); },
       geometry: geometry=>this.selectGeometry(geometry),
       menu: ()=>this.selectGeometry(this.state.geometry,true),

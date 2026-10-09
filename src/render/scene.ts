@@ -1,7 +1,8 @@
 import { CurvedScene } from './curvedScene';
 import * as Spherical from '../geometry/spherical';
 import { GeometryId } from '../geometry/types';
-import { VERTICES } from '../geometry/hyperbolic';
+import { VERTICES, CIRCUMRADIUS, CURVATURE_RADIUS } from '../geometry/hyperbolic';
+import { DEFAULT_HYPERBOLIC_MODEL, HyperbolicModel } from './externalModel';
 import * as THREE from 'three';
 import { AsteroidSize, AsteroidSolid, GameState, WORLD_SIZE, getAsteroidSolid } from '../game/state';
 import { tileOffsets } from '../game/wrap';
@@ -32,6 +33,7 @@ export class SceneRenderer {
   private readonly cubes: LineBatch[] = [];
   private readonly povBoundary: LineBatch;
   private showPovDomainEdges = true;
+  private externalModel: HyperbolicModel = DEFAULT_HYPERBOLIC_MODEL;
   private readonly externalEntityViews: EntityViewRenderer;
   private readonly torusEntityViews: EntityViewRenderer;
   private readonly hud: HudRenderer;
@@ -85,6 +87,12 @@ export class SceneRenderer {
     this.povBoundary.object.visible = visible;
   }
 
+  setExternalModel(model: HyperbolicModel): void {
+    this.externalModel = model;
+    this.hyperbolic?.setExternalModel(model);
+    this.resize();
+  }
+
   private getAsteroidGeometry(size: AsteroidSize): AsteroidGeometry {
     const solid = getAsteroidSolid(size);
     let geometry = this.asteroidGeometryCache.get(solid);
@@ -107,7 +115,9 @@ export class SceneRenderer {
     const vertical = THREE.MathUtils.degToRad(this.externalCamera.fov / 2);
     const horizontal = Math.atan(Math.tan(vertical) * this.externalCamera.aspect);
     const vertices=this.geometry==='spherical'?Spherical.VERTICES:VERTICES;
-    const radius=this.geometry!=='euclidean'?Math.hypot(vertices[0].x,vertices[0].y,vertices[0].z):Math.sqrt(3)*WORLD_SIZE/2;
+    let radius=this.geometry!=='euclidean'?Math.hypot(vertices[0].x,vertices[0].y,vertices[0].z):Math.sqrt(3)*WORLD_SIZE/2;
+    if (this.geometry==='spherical') radius=Spherical.CURVATURE_RADIUS*Math.tan(Spherical.CIRCUMRADIUS/2);
+    if (this.geometry==='hyperbolic' && this.externalModel==='poincare') radius=CURVATURE_RADIUS*Math.tanh(CIRCUMRADIUS/2);
     const distance = radius / Math.sin(Math.min(vertical, horizontal)) * 1.06;
     this.externalCamera.position.set(260, 180, 110).normalize().multiplyScalar(distance);
     this.externalCamera.far = distance + WORLD_SIZE * 3;
@@ -124,6 +134,7 @@ export class SceneRenderer {
         ? this.spherical??=new CurvedScene(this.shipGeometry,this.bulletGeometry,this.fragmentGeometry,size=>this.getAsteroidGeometry(size),Spherical)
         : this.hyperbolic??=new CurvedScene(this.shipGeometry,this.bulletGeometry,this.fragmentGeometry,size=>this.getAsteroidGeometry(size));
       this.shipCamera.position.set(0,0,0);this.shipCamera.up.set(0,1,0);this.shipCamera.lookAt(0,0,1);
+      curved.setExternalModel(this.externalModel);
       curved.update(state,this.shipCamera,this.showPovDomainEdges);
       externalScene=curved.external;povScene=curved.pov;
     } else {
