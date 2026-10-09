@@ -31,6 +31,8 @@ Every asteroid starts as an icosahedron. Successive hits change it into a dodeca
 
 The game pauses when the window loses focus or the tab is hidden. Use **Resume** or `P` to continue. The toolbar also provides mute, fullscreen, and control instructions.
 
+Open **Controls** and uncheck **Show POV domain edges** to hide the cube or dodecahedron boundaries in the first-person view. External boundaries and asteroid outlines stay visible. The setting carries across new games and geometry changes until the page is reloaded.
+
 ## Development and checks
 
 Use Node.js 22.12 or newer.

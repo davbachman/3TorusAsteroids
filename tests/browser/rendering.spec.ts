@@ -56,3 +56,46 @@ test('POV faces hide rear edges and objects; clipping removes exterior geometry;
   expect(result.cachedShapes).toBe(4);
   expect(result.drawCalls).toBeLessThanOrEqual(9);
 });
+
+for (const geometry of ['euclidean', 'hyperbolic'] as const) {
+  test(`${geometry} POV boundary toggle preserves the external view and asteroid outlines`, async ({page}) => {
+    await load(page);
+    const result = await page.evaluate(async geometry => {
+      const scenePath='/src/render/scene.ts', statePath='/src/game/state.ts', spawnPath='/src/game/spawn.ts';
+      const {SceneRenderer}=await import(scenePath);
+      const {createInitialGameState}=await import(statePath);
+      const {makeAsteroid}=await import(spawnPath);
+      const root=document.createElement('div');root.style.cssText='position:fixed;inset:0';document.body.append(root);
+      const scene=new SceneRenderer(root);
+      const s=createInitialGameState();s.geometry=geometry;s.mode='playing';s.ship.alive=false;
+      s.asteroids=[];s.bullets=[];s.fragments=[];
+      const gl=scene.renderer.getContext();
+      const capture=()=>{
+        scene.render(s);
+        const width=gl.drawingBufferWidth,height=gl.drawingBufferHeight;
+        const pixels=new Uint8Array(width*height*4);
+        gl.readPixels(0,0,width,height,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+        const external:number[]=[],pov:number[]=[];
+        for(let y=0;y<height;y++)for(let x=0;x<width;x++)
+          (x<Math.floor(width/2)?external:pov).push(pixels[(y*width+x)*4]);
+        return {external,pov};
+      };
+      const on=capture();scene.setPovDomainEdges(false);const off=capture();
+      scene.setPovDomainEdges(true);const restored=capture();scene.setPovDomainEdges(false);
+      s.asteroids=[makeAsteroid({id:1,size:'large',position:{x:0,y:0,z:25},velocity:{x:0,y:0,z:0}})];
+      const asteroid=capture();
+      scene.destroy();root.remove();
+      return {
+        on:on.pov.filter(x=>x>0).length,off:off.pov.filter(x=>x>0).length,
+        externalUnchanged:on.external.every((x,i)=>x===off.external[i]),
+        restored:on.pov.every((x,i)=>x===restored.pov[i]),
+        asteroid:asteroid.pov.filter(x=>x>0).length,
+      };
+    },geometry);
+    expect(result.on).toBeGreaterThan(100);
+    expect(result.off).toBe(0);
+    expect(result.externalUnchanged).toBe(true);
+    expect(result.restored).toBe(true);
+    expect(result.asteroid).toBeGreaterThan(20);
+  });
+}

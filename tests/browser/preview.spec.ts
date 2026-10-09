@@ -92,3 +92,25 @@ for (const geometry of ['euclidean', 'hyperbolic'] as const) {
     expect(errors).toEqual([]);
   });
 }
+
+test('POV edge checkbox works with keyboard and persists through a new game and geometry change', async ({page}) => {
+  await load(page);
+  await page.getByText('Controls', {exact:true}).click();
+  const edges=page.getByRole('checkbox', {name:'Show POV domain edges'});
+  await expect(edges).toBeChecked();
+  await edges.focus();await page.keyboard.press('Space');await advance(page);
+  await expect(edges).not.toBeChecked();
+  expect((await state(page)).mode).toBe('title');
+  await page.getByText('Controls', {exact:true}).click();
+  await start(page);
+  await page.getByRole('button', {name:'Pause',exact:true}).click();await advance(page);
+  await page.getByRole('button', {name:'Change geometry / new game'}).click();
+  await page.locator('input[value="hyperbolic"]').check();await start(page);
+  await page.getByText('Controls', {exact:true}).click();
+  await expect(edges).not.toBeChecked();
+  await edges.check();await advance(page);await expect(edges).toBeChecked();
+  await page.setViewportSize({width:844,height:390});
+  const bounds=await edges.boundingBox();
+  expect(bounds!.y).toBeGreaterThan(0);
+  expect(bounds!.y+bounds!.height).toBeLessThan(390);
+});

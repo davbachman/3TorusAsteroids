@@ -8,6 +8,7 @@ export interface HudActions {
   release: (pointerId: number) => void;
   fullscreen: () => void;
   mute: () => boolean;
+  povEdges: (visible: boolean) => void;
   geometry: (geometry:GeometryId) => void;
   menu: () => void;
 }
@@ -38,6 +39,7 @@ export class HudRenderer {
     this.toolbar.innerHTML = `<div class="stats" aria-label="Game statistics"></div><nav aria-label="Game controls">
       <button type="button" data-pause>Pause</button><button type="button" data-mute aria-pressed="false">Mute</button>
       <button type="button" data-fullscreen>Fullscreen</button><details class="help"><summary>Controls</summary><div>
+      <label class="view-option"><input type="checkbox" data-pov-edges checked> Show POV domain edges</label>
       <p>Move the pointer over the POV view to steer with a trackpad or mouse. No click needed.</p><p>Arrow keys: turn and look. Z: thrust. Space: fire. P: pause or resume. F: fullscreen.</p>
       <p>On touch screens, hold the arrows and thrust; tap Fire.</p>
       <p data-geometry-help></p>
@@ -78,6 +80,8 @@ export class HudRenderer {
     this.start.addEventListener('click', () => this.actions?.press(this.mode === 'paused' ? 'KeyP' : 'Enter'), options);
     this.toolbar.querySelector('[data-fullscreen]')!.addEventListener('click', () => this.actions?.fullscreen(), options);
     const mute = this.toolbar.querySelector<HTMLButtonElement>('[data-mute]')!;
+    const povEdges = this.toolbar.querySelector<HTMLInputElement>('[data-pov-edges]')!;
+    povEdges.addEventListener('change', () => this.actions?.povEdges(povEdges.checked), options);
     mute.addEventListener('click', () => { const muted = this.actions?.mute() ?? false; mute.textContent = muted ? 'Unmute' : 'Mute'; mute.setAttribute('aria-pressed', String(muted)); }, options);
     for (const button of this.touch.querySelectorAll<HTMLButtonElement>('[data-hold]')) {
       button.addEventListener('pointerdown', e => {

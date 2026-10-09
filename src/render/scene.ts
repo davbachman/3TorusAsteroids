@@ -29,6 +29,8 @@ export class SceneRenderer {
   private readonly bulletGeometry = createBulletLineGeometry();
   private readonly fragmentGeometry = createUnitFragmentGeometry();
   private readonly cubes: LineBatch[] = [];
+  private readonly povBoundary: LineBatch;
+  private showPovDomainEdges = true;
   private readonly externalEntityViews: EntityViewRenderer;
   private readonly torusEntityViews: EntityViewRenderer;
   private readonly hud: HudRenderer;
@@ -63,7 +65,7 @@ export class SceneRenderer {
       new THREE.Plane(new THREE.Vector3(0, 1, 0), half), new THREE.Plane(new THREE.Vector3(0, -1, 0), half),
       new THREE.Plane(new THREE.Vector3(0, 0, 1), half), new THREE.Plane(new THREE.Vector3(0, 0, -1), half),
     ];
-    this.addCubes(this.externalScene, 0); this.addCubes(this.torusScene, 1);
+    this.addCubes(this.externalScene, 0); this.povBoundary = this.addCubes(this.torusScene, 1);
     this.externalEntityViews = new EntityViewRenderer(this.externalScene, this.externalMaterial,
       this.shipGeometry, this.bulletGeometry, this.fragmentGeometry, size => this.getAsteroidGeometry(size), false);
     this.torusEntityViews = new EntityViewRenderer(this.torusScene, this.lineMaterial,
@@ -75,6 +77,11 @@ export class SceneRenderer {
   }
 
   bindControls(actions: HudActions): void { this.hud.bind(actions); }
+
+  setPovDomainEdges(visible: boolean): void {
+    this.showPovDomainEdges = visible;
+    this.povBoundary.object.visible = visible;
+  }
 
   private getAsteroidGeometry(size: AsteroidSize): AsteroidGeometry {
     const solid = getAsteroidSolid(size);
@@ -112,7 +119,7 @@ export class SceneRenderer {
     if(state.geometry==='hyperbolic') {
       this.hyperbolic??=new HyperbolicScene(this.shipGeometry,this.bulletGeometry,this.fragmentGeometry,size=>this.getAsteroidGeometry(size));
       this.shipCamera.position.set(0,0,0);this.shipCamera.up.set(0,1,0);this.shipCamera.lookAt(0,0,1);
-      this.hyperbolic.update(state,this.shipCamera);
+      this.hyperbolic.update(state,this.shipCamera,this.showPovDomainEdges);
       externalScene=this.hyperbolic.external;povScene=this.hyperbolic.pov;
     } else {
       const forward = forwardFromQuat(state.ship.orientation), up = upFromQuat(state.ship.orientation);
@@ -138,7 +145,7 @@ export class SceneRenderer {
     this.renderer.setScissor(rect.x, y, rect.width, rect.height);
   }
 
-  private addCubes(scene: THREE.Scene, range: number): void {
+  private addCubes(scene: THREE.Scene, range: number): LineBatch {
     const batch = new LineBatch(scene, this.lineMaterial);
     const matrix = new THREE.Matrix4();
     batch.begin();
@@ -146,6 +153,7 @@ export class SceneRenderer {
       batch.append(this.cubeGeometry, matrix.makeTranslation(offset.x, offset.y, offset.z));
     }
     batch.finish(); this.cubes.push(batch);
+    return batch;
   }
 
   async toggleFullscreen(): Promise<void> {

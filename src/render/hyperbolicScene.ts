@@ -230,7 +230,7 @@ export class HyperbolicScene {
     }
   }
 
-  update(state: GameState, camera: THREE.PerspectiveCamera): void {
+  update(state: GameState, camera: THREE.PerspectiveCamera, showDomainEdges = true): void {
     const observer = H.inverse(
       H.frame(state.ship.position, state.ship.orientation),
     );
@@ -264,9 +264,11 @@ export class HyperbolicScene {
       );
     };
     this.cells.begin();
-    for (const tile of viewTiles)
-      if (visible(H.center(tile), H.CIRCUMRADIUS * H.CURVATURE_RADIUS))
-        this.cells.append(tile, 1, 0.38);
+    if (showDomainEdges) {
+      for (const tile of viewTiles)
+        if (visible(H.center(tile), H.CIRCUMRADIUS * H.CURVATURE_RADIUS))
+          this.cells.append(tile, 1, 0.38);
+    }
     this.cells.finish();
     for (const batch of this.externalBatches.values()) batch.begin();
     for (const batch of this.povBatches.values()) {
