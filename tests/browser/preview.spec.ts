@@ -188,14 +188,19 @@ for (const geometry of ['euclidean','hyperbolic','spherical'] as const) {
   });
 }
 
-test('keyboard model selection returns steering, thrust, fire, E, and pause to the game',async({page})=>{
+test('focused model selection returns steering, thrust, fire, E, and pause to the game',async({page,browserName})=>{
   await load(page);await page.locator('input[value="hyperbolic"]').check();await start(page);
   const model=page.getByRole('combobox',{name:'External hyperbolic model'});
   for(const [key,value] of [['ArrowUp','klein'],['ArrowDown','poincare']]) {
-    // Open the native menu explicitly: macOS does not change a closed select
-    // with the same arrow-key sequence as Chromium on Linux.
-    await model.focus();await page.keyboard.press('Space');
-    await page.keyboard.press(key);await page.keyboard.press('Enter');
+    await model.focus();
+    if(browserName==='webkit') {
+      // The macOS native popup is outside Playwright's keyboard control.
+      // Commit through its select API without a pointer event: the old focus
+      // bug fails here because the select keeps consuming subsequent keys.
+      await model.selectOption(value);
+    } else {
+      await page.keyboard.press('Space');await page.keyboard.press(key);await page.keyboard.press('Enter');
+    }
     await expect(model).toHaveValue(value);await expect(model).not.toBeFocused();
   }
   await page.keyboard.down('z');await advance(page,200);await page.keyboard.up('z');
