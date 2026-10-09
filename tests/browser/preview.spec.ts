@@ -8,3 +8,11 @@ test('production assets load under the GitHub Pages base path',async({page})=>{
   await page.keyboard.press('Space');await advance(page);expect((await state(page)).bullets.length).toBeGreaterThan(0);
   expect(errors).toEqual([]);
 });
+
+
+test('hyperbolic mode loads in the production bundle',async({page})=>{
+  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+  await load(page);await page.getByRole('radio',{name:'Hyperbolic (Seifert–Weber Dodecahedral)',exact:true}).check();
+  await start(page);expect((await state(page)).geometry).toBe('hyperbolic');
+  await expect(page.getByText('HYPERBOLIC POV',{exact:true})).toBeVisible();expect(errors).toEqual([]);
+});

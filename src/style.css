@@ -58,3 +58,16 @@ h1 { font-size:24px; margin:0 0 14px; }
   .game-panel h1 { font-size:18px; }
   .game-panel .instructions { display:none; }
 }
+
+.geometry-choices { border:0; padding:0; margin:18px 0; text-align:left; }
+.geometry-choices legend { font-size:12px; color:#bbb; margin-bottom:8px; }
+.geometry-choices label { display:flex; align-items:center; gap:10px; border:1px solid #555; border-radius:4px; padding:12px; margin:8px 0; font-size:13px; line-height:1.5; cursor:pointer; }
+.geometry-choices label:has(input:checked) { border-color:#fff; background:#202020; }
+.geometry-choices input { accent-color:white; flex-shrink:0; }
+.game-panel .geometry-description { font-size:12px; color:#ccc; }
+.game-panel [data-menu] { margin-top:10px; font-size:12px; }
+@media(max-height:500px) and (orientation:landscape) {
+  .geometry-choices { margin:8px 0; }
+  .geometry-choices label { padding:6px; margin:4px 0; font-size:11px; }
+  .game-panel .geometry-description { display:none; }
+}

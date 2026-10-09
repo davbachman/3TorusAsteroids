@@ -1,3 +1,4 @@
+import { GeometryId, GEOMETRY_LABELS } from '../geometry/types';
 import { GameState } from '../game/state';
 import { Viewport } from './layout';
 
@@ -7,6 +8,8 @@ export interface HudActions {
   release: (pointerId: number) => void;
   fullscreen: () => void;
   mute: () => boolean;
+  geometry: (geometry:GeometryId) => void;
+  menu: () => void;
 }
 
 export class HudRenderer {
@@ -22,6 +25,8 @@ export class HudRenderer {
   private readonly pause: HTMLButtonElement;
   private readonly message: HTMLElement;
   private readonly start: HTMLButtonElement;
+  private readonly choices:HTMLElement;
+  private readonly description:HTMLElement;
   private actions?: HudActions;
   private mode: GameState['mode'] = 'title';
   private lastAnnouncement = '';
@@ -34,13 +39,19 @@ export class HudRenderer {
       <button type="button" data-fullscreen>Fullscreen</button><details class="help"><summary>Controls</summary><div>
       <p>Move the pointer over the POV view to steer with a trackpad or mouse. No click needed.</p><p>Arrow keys: turn and look. Z: thrust. Space: fire. P: pause or resume. F: fullscreen.</p>
       <p>On touch screens, hold the arrows and thrust; tap Fire.</p>
-      <p>The external view shows one cube. Crossing a wall brings you through the opposite wall. The POV view looks forward from your ship.</p>
+      <p data-geometry-help></p>
       </div></details></nav>`;
     this.stats = this.toolbar.querySelector('.stats')!;
     this.pause = this.toolbar.querySelector('[data-pause]')!;
     this.panel.className = 'game-panel';
     this.panel.setAttribute('aria-label', 'Game menu');
-    this.panel.innerHTML = `<h1>3Torus Asteroids</h1><p data-message></p><p class="instructions">Pointer over POV or arrows to turn<br>Z to thrust · Space to fire<br>Cross a wall to emerge on the opposite side.</p><button type="button" data-start>Start game</button>`;
+    this.panel.innerHTML = `<h1>3Torus Asteroids</h1><p data-message></p>
+      <fieldset class="geometry-choices"><legend>Choose your geometry</legend>
+      <label><input type="radio" name="geometry" value="euclidean" checked> <span>Euclidean (3-Torus)</span></label>
+      <label><input type="radio" name="geometry" value="hyperbolic"> <span>Hyperbolic (Seifert–Weber Dodecahedral)</span></label>
+      </fieldset><p class="geometry-description"></p><p class="instructions">Pointer over POV or arrows to turn<br>Z to thrust · Space to fire<br>Cross a wall to emerge on the opposite side.</p><button type="button" data-start>Start game</button><button type="button" data-menu hidden>Change geometry / new game</button>`;
+    this.choices=this.panel.querySelector('.geometry-choices')!;
+    this.description=this.panel.querySelector('.geometry-description')!;
     this.message = this.panel.querySelector('[data-message]')!;
     this.start = this.panel.querySelector('[data-start]')!;
     this.announcement.className = 'sr-only';
@@ -60,6 +71,8 @@ export class HudRenderer {
     wrapper.append(this.toolbar, this.touch, this.announcement);
     viewport.append(this.externalLabel, this.povLabel, this.divider, this.reticle, this.panel);
     const options = { signal: this.abort.signal };
+    this.panel.querySelector('[data-menu]')!.addEventListener('click',()=>this.actions?.menu(),options);
+    this.choices.addEventListener('change',event=>{const target=event.target as HTMLInputElement;if(target.value==='euclidean'||target.value==='hyperbolic')this.actions?.geometry(target.value);},options);
     this.pause.addEventListener('click', () => this.actions?.press('KeyP'), options);
     this.start.addEventListener('click', () => this.actions?.press(this.mode === 'paused' ? 'KeyP' : 'Enter'), options);
     this.toolbar.querySelector('[data-fullscreen]')!.addEventListener('click', () => this.actions?.fullscreen(), options);
@@ -97,18 +110,25 @@ export class HudRenderer {
 
   render(state: GameState): void {
     this.mode = state.mode;
+    this.choices.hidden=state.mode!=='title'&&state.mode!=='gameOver';
+    this.panel.querySelector<HTMLButtonElement>('[data-menu]')!.hidden=state.mode!=='paused';
+    this.panel.querySelector<HTMLInputElement>(`[value="${state.geometry}"]`)!.checked=true;
+    this.povLabel.textContent=state.geometry==='hyperbolic'?'HYPERBOLIC POV':'TORUS POV';
+    const description=state.geometry==='hyperbolic'?'A dodecahedral universe with negative curvature. Opposite faces join with a 108° twist.':'A flat universe inside a cube. Opposite faces join without a twist.';
+    this.description.textContent=description;
+    this.toolbar.querySelector('[data-geometry-help]')!.textContent=description+' The external view shows one fundamental domain. The POV view looks forward from your ship.';
     const stats = `Score ${state.score} · Lives ${state.lives} · Level ${state.level}`;
     if (this.stats.textContent !== stats) this.stats.textContent = stats;
     const menu = ['title', 'paused', 'gameOver'].includes(state.mode);
     this.panel.hidden = !menu;
     this.pause.disabled = state.mode === 'title' || state.mode === 'gameOver';
     this.pause.textContent = state.mode === 'paused' ? 'Resume' : 'Pause';
-    this.message.textContent = state.mode === 'paused' ? 'Paused — resume when you’re ready.' : state.mode === 'gameOver' ? `Game over · Score ${state.score}` : 'A wireframe world with no edges.';
+    this.message.textContent = state.mode === 'paused' ? 'Paused — resume when you’re ready.' : state.mode === 'gameOver' ? `Game over · Score ${state.score}` : 'Same game. A different kind of space.';
     this.start.textContent = state.mode === 'paused' ? 'Resume game' : state.mode === 'gameOver' ? 'Play again' : 'Start game';
     this.externalLabel.textContent = state.mode === 'respawning'
       ? (state.respawnAt !== null && state.time < state.respawnAt ? 'SHIP LOST · RESPAWNING' : 'WAITING FOR A SAFE SPAWN')
       : state.levelClearAt !== null && state.asteroids.length === 0 ? 'SECTOR CLEAR' : 'EXTERNAL VIEW';
-    const announcement = `${state.mode === 'respawning' ? 'Ship lost. Waiting to respawn.' : state.mode === 'gameOver' ? 'Game over.' : state.mode === 'paused' ? 'Paused.' : state.mode === 'title' ? 'Ready to start.' : 'Playing.'} ${stats}`;
+    const announcement = `${state.mode === 'respawning' ? 'Ship lost. Waiting to respawn.' : state.mode === 'gameOver' ? 'Game over.' : state.mode === 'paused' ? 'Paused.' : state.mode === 'title' ? 'Ready to start.' : 'Playing.'} ${stats} ${GEOMETRY_LABELS[state.geometry]}`;
     if (announcement !== this.lastAnnouncement) { this.announcement.textContent = announcement; this.lastAnnouncement = announcement; }
   }
 

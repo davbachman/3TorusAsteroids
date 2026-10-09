@@ -1,3 +1,4 @@
+import { GeometryId } from '../geometry/types';
 import { Quat, Vec3, quatIdentity, v3 } from '../utils/math';
 
 export const WORLD_SIZE = 100;
@@ -57,6 +58,7 @@ export interface FragmentState {
 }
 
 export interface GameState {
+  geometry: GeometryId;
   mode: GameMode;
   time: number;
   score: number;
@@ -142,8 +144,9 @@ export function createShipState(): ShipState {
   };
 }
 
-export function createInitialGameState(): GameState {
+export function createInitialGameState(geometry: GeometryId = 'euclidean'): GameState {
   return {
+    geometry,
     mode: 'title',
     time: 0,
     score: 0,

@@ -1,3 +1,5 @@
+import { GeometryId } from '../geometry/types';
+import { CURVATURE_RADIUS } from '../geometry/hyperbolic';
 import { AudioEngine } from '../audio/AudioEngine';
 import { PointerSteering } from '../input/pointer';
 import { KeyboardInput } from '../input/keyboard';
@@ -35,6 +37,8 @@ export class Game {
       press: code => this.input.press(code), hold: (code, id) => this.input.hold(code, id),
       release: id => this.input.release(id), fullscreen: () => { void this.scene.toggleFullscreen(); },
       mute: () => this.audio.toggleMute(),
+      geometry: geometry=>this.selectGeometry(geometry),
+      menu: ()=>this.selectGeometry(this.state.geometry,true),
     });
     window.addEventListener('blur', this.pauseForFocusLoss);
     document.addEventListener('visibilitychange', this.handleVisibility);
@@ -46,6 +50,14 @@ export class Game {
     this.input.attach();
     this.render();
     this.rafId = window.requestAnimationFrame(this.frame);
+  }
+
+  private selectGeometry(geometry:GeometryId,returnToMenu=false):void {
+    if(!returnToMenu&&this.state.mode!=='title'&&this.state.mode!=='gameOver')return;
+    this.input.clear();this.pointer.reset();this.audio.stopGameplayLoops();
+    this.accumulator=0;this.lastFrameTime=0;
+    this.state=seedTitleScene(createInitialGameState(geometry));
+    this.render();
   }
 
   private readonly pauseForFocusLoss = () => {
@@ -178,12 +190,16 @@ export class Game {
   private renderGameToText(): string {
     const shipForward = forwardFromQuat(this.state.ship.orientation);
     const payload = {
+      geometry:this.state.geometry,
       mode: this.state.mode,
       score: this.state.score,
       lives: this.state.lives,
       level: this.state.level,
       world: {
-        cubeSize: WORLD_SIZE,
+        cubeSize: this.state.geometry==='euclidean'?WORLD_SIZE:undefined,
+        domain: this.state.geometry==='hyperbolic'?'Seifert–Weber dodecahedron':'cube',
+        coordinates: this.state.geometry==='hyperbolic'?'Klein ball':'Euclidean',
+        curvatureRadius:this.state.geometry==='hyperbolic'?CURVATURE_RADIUS:undefined,
         origin: 'center',
         axes: '+X right, +Y up, +Z depth (far side)',
       },

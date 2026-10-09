@@ -1,3 +1,6 @@
+import { HyperbolicScene } from './hyperbolicScene';
+import { GeometryId } from '../geometry/types';
+import { VERTICES } from '../geometry/hyperbolic';
 import * as THREE from 'three';
 import { AsteroidSolid, GameState, WORLD_SIZE, getAsteroidSolid } from '../game/state';
 import { tileOffsets } from '../game/wrap';
@@ -31,6 +34,8 @@ export class SceneRenderer {
   private readonly hud: HudRenderer;
   private readonly asteroidGeometryCache = new Map<AsteroidSolid, AsteroidGeometry>();
   private readonly observer: ResizeObserver;
+  private geometry:GeometryId='euclidean';
+  private hyperbolic?:HyperbolicScene;
   private viewportWidth = 1;
   private viewportHeight = 1;
 
@@ -38,7 +43,7 @@ export class SceneRenderer {
     this.wrapper.className = 'game'; this.viewport.className = 'playfield';
     this.wrapper.append(this.viewport); root.append(this.wrapper);
     const canvas = document.createElement('canvas');
-    canvas.setAttribute('aria-label', 'External cube and first-person torus views');
+    canvas.setAttribute('aria-label', 'External fundamental domain and first-person geometry views');
     canvas.setAttribute('role', 'img');
     this.viewport.append(canvas);
     try {
@@ -92,7 +97,8 @@ export class SceneRenderer {
     // Fit the cube's bounding sphere to the narrower field of view.
     const vertical = THREE.MathUtils.degToRad(this.externalCamera.fov / 2);
     const horizontal = Math.atan(Math.tan(vertical) * this.externalCamera.aspect);
-    const distance = (Math.sqrt(3) * WORLD_SIZE / 2) / Math.sin(Math.min(vertical, horizontal)) * 1.06;
+    const radius=this.geometry==='hyperbolic'?Math.hypot(VERTICES[0].x,VERTICES[0].y,VERTICES[0].z):Math.sqrt(3)*WORLD_SIZE/2;
+    const distance = radius / Math.sin(Math.min(vertical, horizontal)) * 1.06;
     this.externalCamera.position.set(260, 180, 110).normalize().multiplyScalar(distance);
     this.externalCamera.far = distance + WORLD_SIZE * 3;
     this.externalCamera.lookAt(0, 0, 0); this.externalCamera.updateProjectionMatrix();
@@ -101,18 +107,27 @@ export class SceneRenderer {
   }
 
   render(state: GameState): void {
-    const forward = forwardFromQuat(state.ship.orientation), up = upFromQuat(state.ship.orientation);
-    const eye = state.ship.position;
-    this.shipCamera.position.set(eye.x, eye.y, eye.z);
-    this.shipCamera.up.set(up.x, up.y, up.z);
-    this.shipCamera.lookAt(eye.x + forward.x, eye.y + forward.y, eye.z + forward.z);
-    this.externalEntityViews.render(state, this.externalCamera);
-    this.torusEntityViews.render(state, this.shipCamera);
+    if(this.geometry!==state.geometry){this.geometry=state.geometry;this.resize();}
+    let externalScene=this.externalScene,povScene=this.torusScene;
+    if(state.geometry==='hyperbolic') {
+      this.hyperbolic??=new HyperbolicScene(this.shipGeometry,this.bulletGeometry,this.fragmentGeometry,seed=>this.getAsteroidGeometry(seed));
+      this.shipCamera.position.set(0,0,0);this.shipCamera.up.set(0,1,0);this.shipCamera.lookAt(0,0,1);
+      this.hyperbolic.update(state,this.shipCamera);
+      externalScene=this.hyperbolic.external;povScene=this.hyperbolic.pov;
+    } else {
+      const forward = forwardFromQuat(state.ship.orientation), up = upFromQuat(state.ship.orientation);
+      const eye = state.ship.position;
+      this.shipCamera.position.set(eye.x, eye.y, eye.z);
+      this.shipCamera.up.set(up.x, up.y, up.z);
+      this.shipCamera.lookAt(eye.x + forward.x, eye.y + forward.y, eye.z + forward.z);
+      this.externalEntityViews.render(state, this.externalCamera);
+      this.torusEntityViews.render(state, this.shipCamera);
+    }
     const { external, pov } = viewports(this.viewportWidth, this.viewportHeight);
     this.renderer.setScissorTest(false); this.renderer.clear(true, true, true);
     this.renderer.setScissorTest(true);
-    this.setViewport(external); this.renderer.render(this.externalScene, this.externalCamera);
-    this.setViewport(pov); this.renderer.render(this.torusScene, this.shipCamera);
+    this.setViewport(external); this.renderer.render(externalScene, this.externalCamera);
+    this.setViewport(pov); this.renderer.render(povScene, this.shipCamera);
     this.renderer.setScissorTest(false);
     this.hud.render(state);
   }
@@ -146,7 +161,7 @@ export class SceneRenderer {
   }
 
   destroy(): void {
-    this.observer.disconnect(); this.hud.destroy();
+    this.observer.disconnect(); this.hud.destroy(); this.hyperbolic?.destroy();
     this.externalEntityViews.dispose(); this.torusEntityViews.dispose();
     for (const geometry of this.asteroidGeometryCache.values()) { geometry.edges.dispose(); geometry.solid.dispose(); }
     this.asteroidGeometryCache.clear();

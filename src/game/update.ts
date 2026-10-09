@@ -1,3 +1,4 @@
+import { moveBody, overlap, sweep } from '../geometry/world';
 import {
   ASTEROID_SCORE,
   ASTEROID_BULLET_HIT_PADDING,
@@ -14,19 +15,17 @@ import {
   SHIP_ROLL_RATE,
   SHIP_COAST_DRAG,
   SHIP_THRUST_ACCEL,
-  WORLD_SIZE,
   AsteroidSize,
   FragmentState,
   createShipState,
 } from './state';
-import { sweptSphereTime, wrappedSphereOverlap } from './collision';
 import { makeAsteroid, spawnLevelWave, splitAsteroid } from './spawn';
-import { wrapPosition, toroidalDistance } from './wrap';
 import {
   addScaledVec3,
   applyWorldAxisRotation,
   forwardFromQuat,
   quatIdentity,
+  quatRotateVec3,
   rightFromQuat,
   upFromQuat,
   scaleVec3,
@@ -34,6 +33,8 @@ import {
   Vec3,
 } from '../utils/math';
 import { randomSeed } from '../utils/random';
+
+interface MotionStart {position:Vec3;velocity:Vec3}
 
 export interface StepEvents {
   startedGame: boolean;
@@ -109,7 +110,7 @@ function resetShipAtCenter(state: GameState): void {
 function isRespawnSafe(state: GameState): boolean {
   const center = v3(0, 0, 0);
   for (const asteroid of state.asteroids) {
-    if (toroidalDistance(center, asteroid.position, WORLD_SIZE) < asteroid.radius + 6) {
+    if (overlap(state.geometry,center,6,asteroid.position,asteroid.radius)) {
       return false;
     }
   }
@@ -117,7 +118,7 @@ function isRespawnSafe(state: GameState): boolean {
 }
 
 function spawnWaveForCurrentLevel(state: GameState): void {
-  const wave = spawnLevelWave(state.level, state.ship.position, state.nextEntityId);
+  const wave = spawnLevelWave(state.level, state.ship.position, state.nextEntityId, state.geometry);
   state.asteroids = wave.asteroids;
   state.nextEntityId = wave.nextEntityId;
   state.levelClearAt = null;
@@ -143,7 +144,7 @@ export function startNewGame(state: GameState): GameState {
     levelClearAt: null,
     levelMessageUntil: 1.25,
   };
-  const wave = spawnLevelWave(1, next.ship.position, next.nextEntityId);
+  const wave = spawnLevelWave(1, next.ship.position, next.nextEntityId, next.geometry);
   next.asteroids = wave.asteroids;
   next.nextEntityId = wave.nextEntityId;
   return next;
@@ -182,7 +183,8 @@ function updateFragments(state: GameState, dt: number): void {
   for (const fragment of state.fragments) {
     fragment.ttl -= dt;
     if (fragment.ttl <= 0) continue;
-    fragment.position = wrapPosition(addScaledVec3(fragment.position, fragment.velocity, dt), WORLD_SIZE);
+    const moved = moveBody(state.geometry,fragment.position,fragment.velocity,dt);
+    fragment.position=moved.position; fragment.velocity=moved.velocity;
     next.push(fragment);
   }
   state.fragments = next;
@@ -190,7 +192,9 @@ function updateFragments(state: GameState, dt: number): void {
 
 function updateAsteroids(state: GameState, dt: number): void {
   for (const asteroid of state.asteroids) {
-    asteroid.position = wrapPosition(addScaledVec3(asteroid.position, asteroid.velocity, dt), WORLD_SIZE);
+    const moved=moveBody(state.geometry,asteroid.position,asteroid.velocity,dt,asteroid.rotation);
+    asteroid.position=moved.position;asteroid.velocity=moved.velocity;asteroid.rotation=moved.orientation!;
+    asteroid.angularVelocity=quatRotateVec3(moved.turn,asteroid.angularVelocity);
     asteroid.rotation = applyWorldAxisRotation(asteroid.rotation, { x: 1, y: 0, z: 0 }, asteroid.angularVelocity.x * dt);
     asteroid.rotation = applyWorldAxisRotation(asteroid.rotation, { x: 0, y: 1, z: 0 }, asteroid.angularVelocity.y * dt);
     asteroid.rotation = applyWorldAxisRotation(asteroid.rotation, { x: 0, y: 0, z: 1 }, asteroid.angularVelocity.z * dt);
@@ -203,7 +207,8 @@ function updateBullets(state: GameState, dt: number): void {
   for (const bullet of state.bullets) {
     const travelTime = Math.min(dt, bullet.ttl);
     bullet.ttl -= dt;
-    bullet.position = wrapPosition(addScaledVec3(bullet.position, bullet.velocity, travelTime), WORLD_SIZE);
+    const moved=moveBody(state.geometry,bullet.position,bullet.velocity,travelTime);
+    bullet.position=moved.position;bullet.velocity=moved.velocity;
     next.push(bullet);
   }
   state.bullets = next;
@@ -216,14 +221,15 @@ function tryFireBullet(state: GameState, events: StepEvents): void {
 
   const forward = forwardFromQuat(state.ship.orientation);
   const noseOffset = 3.4;
+  const nose=moveBody(state.geometry,state.ship.position,scaleVec3(forward,noseOffset),1);
   const bullet = {
     id: state.nextEntityId++,
-    position: wrapPosition(addScaledVec3(state.ship.position, forward, noseOffset), WORLD_SIZE),
-    velocity: {
+    position: nose.position,
+    velocity: quatRotateVec3(nose.turn,{
       x: state.ship.velocity.x + forward.x * BULLET_SPEED,
       y: state.ship.velocity.y + forward.y * BULLET_SPEED,
       z: state.ship.velocity.z + forward.z * BULLET_SPEED,
-    },
+    }),
     ttl: BULLET_TTL,
   };
   state.bullets.push(bullet);
@@ -233,7 +239,7 @@ function tryFireBullet(state: GameState, events: StepEvents): void {
 
 function resolveBulletAsteroidHits(
   state: GameState, events: StepEvents, dt: number,
-  asteroidStarts: Map<number, Vec3>, bulletStarts: Map<number, { position: Vec3; ttl: number }>,
+  asteroidStarts: Map<number, MotionStart>, bulletStarts: Map<number, MotionStart & { ttl: number }>,
 ): void {
   if (state.bullets.length === 0 || state.asteroids.length === 0) return;
 
@@ -246,10 +252,11 @@ function resolveBulletAsteroidHits(
     let nearest: { id: number; time: number } | null = null;
     for (const asteroid of state.asteroids) {
       if (hitAsteroidIds.has(asteroid.id)) continue;
-      const time = sweptSphereTime(
-        previous?.position ?? bullet.position, scaleVec3(bullet.velocity, travelTime), 0.8,
-        previous ? asteroidStarts.get(asteroid.id)! : asteroid.position,
-        scaleVec3(asteroid.velocity, travelTime), asteroid.radius + ASTEROID_BULLET_HIT_PADDING, WORLD_SIZE,
+      const time = sweep(
+        state.geometry,
+        previous?.position ?? bullet.position, scaleVec3(previous?.velocity ?? bullet.velocity, travelTime), 0.8,
+        previous ? asteroidStarts.get(asteroid.id)!.position : asteroid.position,
+        scaleVec3(asteroidStarts.get(asteroid.id)!.velocity, travelTime), asteroid.radius + ASTEROID_BULLET_HIT_PADDING,
       );
       if (time !== null && (nearest === null || time < nearest.time)) nearest = { id: asteroid.id, time };
     }
@@ -286,7 +293,7 @@ function resolveBulletAsteroidHits(
       asteroid.velocity,
     );
 
-    const split = splitAsteroid(asteroid, state.nextEntityId);
+    const split = splitAsteroid(asteroid, state.nextEntityId, state.geometry);
     state.nextEntityId = split.nextEntityId;
     nextAsteroids.push(...split.children);
   }
@@ -294,9 +301,9 @@ function resolveBulletAsteroidHits(
   state.asteroids = nextAsteroids;
 }
 
-function updateShip(state: GameState, input: InputState, dt: number): void {
+function updateShip(state: GameState, input: InputState, dt: number): Vec3 {
   const ship = state.ship;
-  if (!ship.alive) return;
+  if (!ship.alive) return v3();
 
   const yawDir = (input.left ? 1 : 0) + (input.right ? -1 : 0);
   const pitchDir = (input.up ? -1 : 0) + (input.down ? 1 : 0);
@@ -321,11 +328,14 @@ function updateShip(state: GameState, input: InputState, dt: number): void {
     ship.velocity = scaleVec3(ship.velocity, dragFactor);
   }
 
-  ship.position = wrapPosition(addScaledVec3(ship.position, ship.velocity, dt), WORLD_SIZE);
+  const displacement=scaleVec3(ship.velocity,dt);
+  const moved=moveBody(state.geometry,ship.position,ship.velocity,dt,ship.orientation);
+  ship.position=moved.position;ship.velocity=moved.velocity;ship.orientation=moved.orientation!;
+  return displacement;
 }
 
 function resolveShipAsteroidCollision(
-  state: GameState, events: StepEvents, dt: number, shipStart: Vec3, asteroidStarts: Map<number, Vec3>,
+  state: GameState, events: StepEvents, dt: number, shipStart: Vec3, shipDisplacement: Vec3, asteroidStarts: Map<number, MotionStart>,
 ): void {
   if (!state.ship.alive) return;
   if (state.time < state.ship.invulnerableUntil) return;
@@ -333,9 +343,9 @@ function resolveShipAsteroidCollision(
   for (const asteroid of state.asteroids) {
     const start = asteroidStarts.get(asteroid.id);
     const hit = start
-      ? sweptSphereTime(shipStart, scaleVec3(state.ship.velocity, dt), state.ship.radius,
-          start, scaleVec3(asteroid.velocity, dt), asteroid.radius, WORLD_SIZE) !== null
-      : wrappedSphereOverlap(state.ship.position, state.ship.radius, asteroid.position, asteroid.radius, WORLD_SIZE);
+      ? sweep(state.geometry,shipStart,shipDisplacement,state.ship.radius,
+          start.position,scaleVec3(start.velocity,dt),asteroid.radius) !== null
+      : overlap(state.geometry,state.ship.position,state.ship.radius,asteroid.position,asteroid.radius);
     if (hit) {
       handleShipDeath(state, events);
       return;
@@ -409,15 +419,16 @@ export function stepGame(state: GameState, input: InputState, dt: number): { sta
   state.time += dt;
   state.fireCooldownRemaining = Math.max(0, state.fireCooldownRemaining - dt);
 
-  const asteroidStarts = new Map(state.asteroids.map(a => [a.id, a.position]));
-  const bulletStarts = new Map(state.bullets.map(b => [b.id, { position: b.position, ttl: b.ttl }]));
+  const asteroidStarts = new Map(state.asteroids.map(a => [a.id, {position:a.position,velocity:a.velocity}]));
+  const bulletStarts = new Map(state.bullets.map(b => [b.id, { position: b.position, velocity:b.velocity, ttl: b.ttl }]));
   const shipStart = state.ship.position;
   updateAsteroids(state, dt);
   updateBullets(state, dt);
   updateFragments(state, dt);
 
+  let shipDisplacement=v3();
   if (state.ship.alive) {
-    updateShip(state, input, dt);
+    shipDisplacement=updateShip(state, input, dt);
     events.thrustActive = input.thrust;
     if (input.firePressed) {
       tryFireBullet(state, events);
@@ -428,7 +439,7 @@ export function stepGame(state: GameState, input: InputState, dt: number): { sta
 
   resolveBulletAsteroidHits(state, events, dt, asteroidStarts, bulletStarts);
   state.bullets = state.bullets.filter(b => b.ttl > 0);
-  resolveShipAsteroidCollision(state, events, dt, shipStart, asteroidStarts);
+  resolveShipAsteroidCollision(state, events, dt, shipStart, shipDisplacement, asteroidStarts);
   tryRespawn(state);
   maybeAdvanceLevel(state);
 
@@ -454,6 +465,7 @@ export function seedTitleScene(state: GameState): GameState {
 export function forceAsteroidForTesting(state: GameState, size: AsteroidSize, position = v3(0, 0, 20)): void {
   state.asteroids = [
     makeAsteroid({
+      geometry:state.geometry,
       id: state.nextEntityId++,
       size,
       position,

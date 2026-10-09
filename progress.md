@@ -28,3 +28,12 @@ Original prompt: Implement a browser-based 3D Asteroids game inside a wireframe 
 - Added pointer-over-POV steering, touch controls, responsive viewports, accessible HTML menus/status, mute, focus-loss pause, and resource cleanup.
 - Fixed production preview paths, enabled strict TypeScript, updated tooling, and added unit/browser checks to pull requests and deployment.
 - Verified normal-speed shots near visible faces, edges, and corners of every large Platonic solid, including rotated shapes.
+
+
+## Geometry selection and Seifert–Weber mode
+
+- Added Euclidean (3-Torus) and Hyperbolic (Seifert–Weber Dodecahedral) choices, live previews, and a route back to geometry selection from pause.
+- Added Lorentz-isometry face pairings with 108° twists and a regular hyperbolic dodecahedron with 72° dihedral angles.
+- Integrated geodesic movement, parallel transport, hyperbolic collision sweeps, and safe spawns with the existing gameplay.
+- Added a clipped Klein-model external view and an observer-centered instanced hyperbolic POV with opaque asteroid faces.
+- Verified 29 unit tests and 9 Chromium browser/production-preview tests, including five-cell edge cycles, twenty-cell vertex cycles, and equivalent viewpoints across identified faces.

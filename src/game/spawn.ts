@@ -1,6 +1,7 @@
-import { AsteroidSize, AsteroidState, SHIP_RADIUS, WORLD_HALF, WORLD_SIZE, getAsteroidRadius } from './state';
-import { Quat, Vec3, quatIdentity, v3 } from '../utils/math';
-import { toroidalDistance, wrapPosition } from './wrap';
+import { GeometryId } from '../geometry/types';
+import { canonicalPosition, insideDomain, moveBody, overlap } from '../geometry/world';
+import { AsteroidSize, AsteroidState, SHIP_RADIUS, WORLD_HALF, getAsteroidRadius } from './state';
+import { Quat, Vec3, quatIdentity, quatRotateVec3, v3 } from '../utils/math';
 import { randomSeed } from '../utils/random';
 
 const SIZE_ORDER: AsteroidSize[] = ['large', 'medium', 'small'];
@@ -35,6 +36,7 @@ function randomAngularVelocity(): Vec3 {
 }
 
 export function makeAsteroid(params: {
+  geometry?: GeometryId;
   id: number;
   size: AsteroidSize;
   position: Vec3;
@@ -48,7 +50,7 @@ export function makeAsteroid(params: {
   return {
     id,
     size,
-    position: wrapPosition(position, WORLD_SIZE),
+    position: canonicalPosition(params.geometry ?? 'euclidean', position),
     velocity: params.velocity ? { ...params.velocity } : randomVelocityForSize(size),
     angularVelocity: params.angularVelocity ? { ...params.angularVelocity } : randomAngularVelocity(),
     rotation: params.rotation ? { ...params.rotation } : quatIdentity(),
@@ -61,7 +63,7 @@ function randomSpawnPosition(): Vec3 {
   return v3(rand(-WORLD_HALF, WORLD_HALF), rand(-WORLD_HALF, WORLD_HALF), rand(-WORLD_HALF, WORLD_HALF));
 }
 
-export function spawnLevelWave(level: number, shipPosition: Vec3, nextEntityId: number): {
+export function spawnLevelWave(level: number, shipPosition: Vec3, nextEntityId: number, geometry: GeometryId = 'euclidean'): {
   asteroids: AsteroidState[];
   nextEntityId: number;
 } {
@@ -70,8 +72,8 @@ export function spawnLevelWave(level: number, shipPosition: Vec3, nextEntityId: 
   let id = nextEntityId;
   let attempts = 0;
   const isSafe = (position: Vec3, radius: number) =>
-    toroidalDistance(position, shipPosition, WORLD_SIZE) >= radius + SHIP_RADIUS + 8 &&
-    asteroids.every((a) => toroidalDistance(position, a.position, WORLD_SIZE) >= a.radius + radius + 4);
+    insideDomain(geometry,position) && !overlap(geometry,position,radius,shipPosition,SHIP_RADIUS+8) &&
+    asteroids.every((a) => !overlap(geometry,position,radius,a.position,a.radius+4));
 
   while (asteroids.length < largeCount && attempts < largeCount * 100) {
     attempts += 1;
@@ -79,7 +81,7 @@ export function spawnLevelWave(level: number, shipPosition: Vec3, nextEntityId: 
     const candidateSeed = randomSeed();
     const candidateRadius = getAsteroidRadius('large', candidateSeed);
     if (!isSafe(position, candidateRadius)) continue;
-    asteroids.push(makeAsteroid({ id: id++, size: 'large', position, seed: candidateSeed }));
+    asteroids.push(makeAsteroid({ geometry, id: id++, size: 'large', position, seed: candidateSeed }));
   }
 
   // Bounded fallback: try smaller solids on a grid rather than dropping the
@@ -89,7 +91,7 @@ export function spawnLevelWave(level: number, shipPosition: Vec3, nextEntityId: 
       for (let z = -40; z <= 40 && asteroids.length < largeCount; z += 20) {
         const position = v3(x, y, z);
         if (isSafe(position, getAsteroidRadius('large', 0))) {
-          asteroids.push(makeAsteroid({ id: id++, size: 'large', seed: 0, position }));
+          asteroids.push(makeAsteroid({ geometry, id: id++, size: 'large', seed: 0, position }));
         }
       }
     }
@@ -98,7 +100,7 @@ export function spawnLevelWave(level: number, shipPosition: Vec3, nextEntityId: 
   return { asteroids, nextEntityId: id };
 }
 
-export function splitAsteroid(parent: AsteroidState, nextEntityId: number): {
+export function splitAsteroid(parent: AsteroidState, nextEntityId: number, geometry: GeometryId = 'euclidean'): {
   children: AsteroidState[];
   nextEntityId: number;
 } {
@@ -127,17 +129,17 @@ export function splitAsteroid(parent: AsteroidState, nextEntityId: number): {
     };
     const childSeed = randomSeed();
     const childRadius = getAsteroidRadius(childSize, childSeed);
+    const displaced = moveBody(geometry,parent.position,{
+      x:dir.x*childRadius*.6,y:dir.y*childRadius*.6,z:dir.z*childRadius*.6,
+    },1);
     children.push(
       makeAsteroid({
+        geometry,
         id: id++,
         size: childSize,
         seed: childSeed,
-        position: {
-          x: parent.position.x + dir.x * childRadius * 0.6,
-          y: parent.position.y + dir.y * childRadius * 0.6,
-          z: parent.position.z + dir.z * childRadius * 0.6,
-        },
-        velocity: childVel,
+        position: displaced.position,
+        velocity: quatRotateVec3(displaced.turn,childVel),
       }),
     );
   }
