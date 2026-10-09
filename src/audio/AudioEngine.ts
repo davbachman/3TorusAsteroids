@@ -9,22 +9,34 @@ export class AudioEngine {
   private thrustOsc: OscillatorNode | null = null;
   private thrustNoiseSource: AudioBufferSourceNode | null = null;
   private muted = false;
+  private unavailable = false;
   private nextBeatAt = 0;
   private beatHigh = false;
 
   unlock(): void {
-    if (typeof window === 'undefined') return;
-    if (!this.ctx) {
-      const Ctx = (window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
-      if (!Ctx) return;
-      this.ctx = new Ctx();
-      this.master = this.ctx.createGain();
-      this.master.gain.value = this.muted ? 0 : 0.2;
-      this.master.connect(this.ctx.destination);
-      this.noiseBuffer = createNoiseBuffer(this.ctx, 1.2);
-      this.initThrustLoop();
+    if (typeof window === 'undefined' || this.unavailable) return;
+    try {
+      if (!this.ctx) {
+        const Ctx = (window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+        if (!Ctx) return;
+        this.ctx = new Ctx();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = this.muted ? 0 : 0.2;
+        this.master.connect(this.ctx.destination);
+        this.noiseBuffer = createNoiseBuffer(this.ctx, 1.2);
+        this.initThrustLoop();
+      }
+      if (this.ctx.state === 'suspended') void this.ctx.resume().catch(() => {});
+    } catch (error) {
+      // Sound is optional: a browser/device audio failure must not discard the
+      // user's Start command or leave a partially initialized engine in the loop.
+      const context = this.ctx;
+      this.unavailable = true;
+      this.ctx = null; this.master = null; this.noiseBuffer = null;
+      this.thrustGain = null; this.thrustOsc = null; this.thrustNoiseSource = null;
+      if (context && context.state !== 'closed') void context.close().catch(() => {});
+      console.warn('Audio unavailable; continuing without sound.', error);
     }
-    if (this.ctx.state === 'suspended') void this.ctx.resume().catch(() => {});
   }
 
   private initThrustLoop(): void {

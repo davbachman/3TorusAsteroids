@@ -28,7 +28,8 @@ export class HudRenderer {
   private readonly choices:HTMLElement;
   private readonly description:HTMLElement;
   private actions?: HudActions;
-  private mode: GameState['mode'] = 'title';
+  private mode?: GameState['mode'];
+  private geometry?: GeometryId;
   private lastAnnouncement = '';
   private readonly abort = new AbortController();
 
@@ -109,29 +110,41 @@ export class HudRenderer {
   }
 
   render(state: GameState): void {
-    this.mode = state.mode;
-    this.choices.hidden=state.mode!=='title'&&state.mode!=='gameOver';
-    this.panel.querySelector<HTMLButtonElement>('[data-menu]')!.hidden=state.mode!=='paused';
-    this.panel.querySelector<HTMLInputElement>(`[value="${state.geometry}"]`)!.checked=true;
-    this.povLabel.textContent=state.geometry==='hyperbolic'?'HYPERBOLIC POV':'TORUS POV';
-    const description=state.geometry==='hyperbolic'?'A dodecahedral universe with negative curvature. Opposite faces join with a 108° twist.':'A flat universe inside a cube. Opposite faces join without a twist.';
-    this.description.textContent=description;
-    this.toolbar.querySelector('[data-geometry-help]')!.textContent=description+' The external view shows one fundamental domain. The POV view looks forward from your ship.';
+    if (this.mode !== state.mode) {
+      this.mode = state.mode;
+      this.choices.hidden = state.mode !== 'title' && state.mode !== 'gameOver';
+      this.panel.querySelector<HTMLButtonElement>('[data-menu]')!.hidden = state.mode !== 'paused';
+      this.panel.hidden = !['title', 'paused', 'gameOver'].includes(state.mode);
+      this.pause.disabled = state.mode === 'title' || state.mode === 'gameOver';
+    }
+    // Keep native controls stable between pointer-down and activation (including
+    // touch and keyboard activation). Geometry only changes from the menu.
+    if (this.geometry !== state.geometry) {
+      this.geometry = state.geometry;
+      this.panel.querySelector<HTMLInputElement>(`[value="${state.geometry}"]`)!.checked = true;
+      this.povLabel.textContent = state.geometry === 'hyperbolic' ? 'HYPERBOLIC POV' : 'TORUS POV';
+      const description = state.geometry === 'hyperbolic'
+        ? 'A dodecahedral universe with negative curvature. Opposite faces join with a 108° twist.'
+        : 'A flat universe inside a cube. Opposite faces join without a twist.';
+      this.description.textContent = description;
+      this.toolbar.querySelector('[data-geometry-help]')!.textContent = description + ' The external view shows one fundamental domain. The POV view looks forward from your ship.';
+    }
     const stats = `Score ${state.score} · Lives ${state.lives} · Level ${state.level}`;
     if (this.stats.textContent !== stats) this.stats.textContent = stats;
-    const menu = ['title', 'paused', 'gameOver'].includes(state.mode);
-    this.panel.hidden = !menu;
-    this.pause.disabled = state.mode === 'title' || state.mode === 'gameOver';
-    this.pause.textContent = state.mode === 'paused' ? 'Resume' : 'Pause';
-    this.message.textContent = state.mode === 'paused' ? 'Paused — resume when you’re ready.' : state.mode === 'gameOver' ? `Game over · Score ${state.score}` : 'Same game. A different kind of space.';
-    this.start.textContent = state.mode === 'paused' ? 'Resume game' : state.mode === 'gameOver' ? 'Play again' : 'Start game';
-    this.externalLabel.textContent = state.mode === 'respawning'
+    setText(this.pause, state.mode === 'paused' ? 'Resume' : 'Pause');
+    setText(this.message, state.mode === 'paused' ? 'Paused — resume when you’re ready.' : state.mode === 'gameOver' ? `Game over · Score ${state.score}` : 'Same game. A different kind of space.');
+    setText(this.start, state.mode === 'paused' ? 'Resume game' : state.mode === 'gameOver' ? 'Play again' : 'Start game');
+    setText(this.externalLabel, state.mode === 'respawning'
       ? (state.respawnAt !== null && state.time < state.respawnAt ? 'SHIP LOST · RESPAWNING' : 'WAITING FOR A SAFE SPAWN')
-      : state.levelClearAt !== null && state.asteroids.length === 0 ? 'SECTOR CLEAR' : 'EXTERNAL VIEW';
+      : state.levelClearAt !== null && state.asteroids.length === 0 ? 'SECTOR CLEAR' : 'EXTERNAL VIEW');
     const announcement = `${state.mode === 'respawning' ? 'Ship lost. Waiting to respawn.' : state.mode === 'gameOver' ? 'Game over.' : state.mode === 'paused' ? 'Paused.' : state.mode === 'title' ? 'Ready to start.' : 'Playing.'} ${stats} ${GEOMETRY_LABELS[state.geometry]}`;
     if (announcement !== this.lastAnnouncement) { this.announcement.textContent = announcement; this.lastAnnouncement = announcement; }
   }
 
   notify(message: string): void { this.announcement.textContent = message; }
   destroy(): void { this.abort.abort(); }
+}
+
+function setText(element: HTMLElement, text: string): void {
+  if (element.textContent !== text) element.textContent = text;
 }
