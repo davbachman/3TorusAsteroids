@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import * as H from "../geometry/hyperbolic";
-import { GameState, getAsteroidSolid } from "../game/state";
+import { ASTEROID_STAGES, AsteroidSize, GameState, getAsteroidSolid } from "../game/state";
 import { Quat, Vec3, lengthVec3, quatIdentity, v3 } from "../utils/math";
 import { AsteroidGeometry } from "./entityViews";
 
@@ -180,7 +180,7 @@ export class HyperbolicScene {
     ship: THREE.BufferGeometry,
     bullet: THREE.BufferGeometry,
     fragment: THREE.BufferGeometry,
-    getAsteroid: (seed: number) => AsteroidGeometry,
+    getAsteroid: (size: AsteroidSize) => AsteroidGeometry,
   ) {
     // Keep more of the repeating structure visible; touch devices use a
     // smaller cover because hyperbolic cell counts grow exponentially.
@@ -224,9 +224,9 @@ export class HyperbolicScene {
     add("ship", ship);
     add("bullet", bullet);
     add("fragment", fragment);
-    for (let i = 0; i < 5; i++) {
-      const g = getAsteroid(i);
-      add(getAsteroidSolid(i), g.edges, g.solid);
+    for (const size of ASTEROID_STAGES) {
+      const g = getAsteroid(size);
+      add(getAsteroidSolid(size), g.edges, g.solid);
     }
   }
 
@@ -304,7 +304,7 @@ export class HyperbolicScene {
       emit("ship", state.ship.position, 4, state.ship.orientation, 1, true);
     for (const asteroid of state.asteroids)
       emit(
-        getAsteroidSolid(asteroid.seed),
+        getAsteroidSolid(asteroid.size),
         asteroid.position,
         asteroid.radius,
         asteroid.rotation,

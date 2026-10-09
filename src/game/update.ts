@@ -19,7 +19,7 @@ import {
   FragmentState,
   createShipState,
 } from './state';
-import { makeAsteroid, spawnLevelWave, splitAsteroid } from './spawn';
+import { makeAsteroid, spawnLevelWave, advanceAsteroid } from './spawn';
 import {
   addScaledVec3,
   applyWorldAxisRotation,
@@ -32,7 +32,6 @@ import {
   v3,
   Vec3,
 } from '../utils/math';
-import { randomSeed } from '../utils/random';
 
 interface MotionStart {position:Vec3;velocity:Vec3}
 
@@ -293,9 +292,8 @@ function resolveBulletAsteroidHits(
       asteroid.velocity,
     );
 
-    const split = splitAsteroid(asteroid, state.nextEntityId, state.geometry);
-    state.nextEntityId = split.nextEntityId;
-    nextAsteroids.push(...split.children);
+    const nextStage = advanceAsteroid(asteroid);
+    if (nextStage) nextAsteroids.push(nextStage);
   }
 
   state.asteroids = nextAsteroids;
@@ -471,7 +469,6 @@ export function forceAsteroidForTesting(state: GameState, size: AsteroidSize, po
       position,
       velocity: v3(0, 0, 0),
       angularVelocity: v3(0.4, 0.6, 0.2),
-      seed: randomSeed(),
     }),
   ];
 }

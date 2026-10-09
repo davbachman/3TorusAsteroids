@@ -104,6 +104,7 @@ export class AudioEngine {
       large: { gain: 0.09, decay: 0.28, lowpass: 900, tone: 140 },
       medium: { gain: 0.07, decay: 0.20, lowpass: 1300, tone: 200 },
       small: { gain: 0.05, decay: 0.14, lowpass: 1800, tone: 280 },
+      tiny: { gain: 0.04, decay: 0.10, lowpass: 2400, tone: 360 },
     }[size];
     scheduleNoiseBurst({
       ctx: this.ctx,

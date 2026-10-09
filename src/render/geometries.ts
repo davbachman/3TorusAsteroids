@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { getAsteroidSolid } from '../game/state';
+import { AsteroidSize, getAsteroidSolid } from '../game/state';
 
 function lineSegmentsFromPairs(pairs: Array<[number, number, number, number, number, number]>): THREE.BufferGeometry {
   const positions = new Float32Array(pairs.length * 6);
@@ -51,12 +51,10 @@ export function createUnitFragmentGeometry(): THREE.BufferGeometry {
   return lineSegmentsFromPairs([[0, 0, 0, 1, 0, 0]]);
 }
 
-export function createAsteroidSolidGeometry(seed: number): THREE.BufferGeometry {
-  switch (getAsteroidSolid(seed)) {
+export function createAsteroidSolidGeometry(size: AsteroidSize): THREE.BufferGeometry {
+  switch (getAsteroidSolid(size)) {
     case 'tetrahedron':
       return new THREE.TetrahedronGeometry(1);
-    case 'cube':
-      return new THREE.BoxGeometry(2 / Math.sqrt(3), 2 / Math.sqrt(3), 2 / Math.sqrt(3));
     case 'octahedron':
       return new THREE.OctahedronGeometry(1);
     case 'dodecahedron':
@@ -67,8 +65,8 @@ export function createAsteroidSolidGeometry(seed: number): THREE.BufferGeometry 
   }
 }
 
-export function createAsteroidLineGeometry(seed: number): THREE.BufferGeometry {
-  const base = createAsteroidSolidGeometry(seed);
+export function createAsteroidLineGeometry(size: AsteroidSize): THREE.BufferGeometry {
+  const base = createAsteroidSolidGeometry(size);
   const edges = new THREE.EdgesGeometry(base);
   base.dispose();
   return edges;

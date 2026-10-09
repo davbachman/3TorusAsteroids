@@ -2,7 +2,7 @@ import { HyperbolicScene } from './hyperbolicScene';
 import { GeometryId } from '../geometry/types';
 import { VERTICES } from '../geometry/hyperbolic';
 import * as THREE from 'three';
-import { AsteroidSolid, GameState, WORLD_SIZE, getAsteroidSolid } from '../game/state';
+import { AsteroidSize, AsteroidSolid, GameState, WORLD_SIZE, getAsteroidSolid } from '../game/state';
 import { tileOffsets } from '../game/wrap';
 import { forwardFromQuat, upFromQuat } from '../utils/math';
 import { createAsteroidLineGeometry, createAsteroidSolidGeometry, createBulletLineGeometry, createCubeLineGeometry, createShipLineGeometry, createUnitFragmentGeometry } from './geometries';
@@ -65,9 +65,9 @@ export class SceneRenderer {
     ];
     this.addCubes(this.externalScene, 0); this.addCubes(this.torusScene, 1);
     this.externalEntityViews = new EntityViewRenderer(this.externalScene, this.externalMaterial,
-      this.shipGeometry, this.bulletGeometry, this.fragmentGeometry, seed => this.getAsteroidGeometry(seed), false);
+      this.shipGeometry, this.bulletGeometry, this.fragmentGeometry, size => this.getAsteroidGeometry(size), false);
     this.torusEntityViews = new EntityViewRenderer(this.torusScene, this.lineMaterial,
-      this.shipGeometry, this.bulletGeometry, this.fragmentGeometry, seed => this.getAsteroidGeometry(seed), true, this.faceMaterial);
+      this.shipGeometry, this.bulletGeometry, this.fragmentGeometry, size => this.getAsteroidGeometry(size), true, this.faceMaterial);
     this.hud = new HudRenderer(this.wrapper, this.viewport);
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(this.viewport);
@@ -76,11 +76,11 @@ export class SceneRenderer {
 
   bindControls(actions: HudActions): void { this.hud.bind(actions); }
 
-  private getAsteroidGeometry(seed: number): AsteroidGeometry {
-    const solid = getAsteroidSolid(seed);
+  private getAsteroidGeometry(size: AsteroidSize): AsteroidGeometry {
+    const solid = getAsteroidSolid(size);
     let geometry = this.asteroidGeometryCache.get(solid);
     if (!geometry) {
-      geometry = { edges: createAsteroidLineGeometry(seed), solid: createAsteroidSolidGeometry(seed) };
+      geometry = { edges: createAsteroidLineGeometry(size), solid: createAsteroidSolidGeometry(size) };
       this.asteroidGeometryCache.set(solid, geometry);
     }
     return geometry;
@@ -110,7 +110,7 @@ export class SceneRenderer {
     if(this.geometry!==state.geometry){this.geometry=state.geometry;this.resize();}
     let externalScene=this.externalScene,povScene=this.torusScene;
     if(state.geometry==='hyperbolic') {
-      this.hyperbolic??=new HyperbolicScene(this.shipGeometry,this.bulletGeometry,this.fragmentGeometry,seed=>this.getAsteroidGeometry(seed));
+      this.hyperbolic??=new HyperbolicScene(this.shipGeometry,this.bulletGeometry,this.fragmentGeometry,size=>this.getAsteroidGeometry(size));
       this.shipCamera.position.set(0,0,0);this.shipCamera.up.set(0,1,0);this.shipCamera.lookAt(0,0,1);
       this.hyperbolic.update(state,this.shipCamera);
       externalScene=this.hyperbolic.external;povScene=this.hyperbolic.pov;

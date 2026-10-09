@@ -5,7 +5,7 @@ import { PointerSteering } from '../input/pointer';
 import { KeyboardInput } from '../input/keyboard';
 import { SceneRenderer } from '../render/scene';
 import { forwardFromQuat } from '../utils/math';
-import { createInitialGameState, GameState, InputState, WORLD_SIZE } from './state';
+import { createInitialGameState, getAsteroidSolid, GameState, InputState, WORLD_SIZE } from './state';
 import { forceAsteroidForTesting, seedTitleScene, startNewGame, stepGame } from './update';
 
 const FIXED_DT = 1 / 60;
@@ -213,6 +213,7 @@ export class Game {
       asteroids: this.state.asteroids.map((a) => ({
         id: a.id,
         size: a.size,
+        shape: getAsteroidSolid(a.size),
         radius: a.radius,
         position: roundVec(a.position),
         velocity: roundVec(a.velocity),

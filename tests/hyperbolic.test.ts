@@ -178,7 +178,6 @@ test("hyperbolic shots hit large asteroid edges rather than only the center", ()
       geometry: "hyperbolic",
       id: 1,
       size: "large",
-      seed: 4,
       position: v3(),
       velocity: v3(),
       angularVelocity: v3(),
@@ -186,10 +185,10 @@ test("hyperbolic shots hit large asteroid edges rather than only the center", ()
   ];
   // Start a geodesic at a lateral offset almost as large as the collision radius.
   s.bullets = [
-    { id: 2, position: v3(17, 0, -10), velocity: v3(0, 0, 120), ttl: 1 },
+    { id: 2, position: v3(s.asteroids[0].radius * 0.85, 0, -10), velocity: v3(0, 0, 120), ttl: 1 },
   ];
   s.nextEntityId = 3;
   for (let i = 0; i < 60 && s.score === 0; i++) stepGame(s, none, 1 / 60);
   assert.equal(s.score, 20);
-  assert.equal(s.asteroids.length, 2);
+  assert.equal(s.asteroids.length, 1);
 });

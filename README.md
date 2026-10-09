@@ -16,6 +16,8 @@ To learn more about David Bachman and his work visit https://pzacad.pitzer.edu/~
 
 ## How to Play
 
+Every asteroid starts as an icosahedron. Successive hits change it into a dodecahedron, then an octahedron, then a tetrahedron; the fourth hit destroys it. Each hit shrinks the same asteroid without changing its trajectory. This progression applies in both geometries.
+
 - Trackpad or mouse: move the pointer inside the POV view to turn and look. No click is needed; leaving and re-entering the view does not jump the camera.
 - Touch: hold the direction buttons and Thrust, and tap Fire. Multiple fingers can steer and thrust together.
 - `Left` / `Right`: turn left or right

@@ -91,7 +91,6 @@ test("hyperbolic surfaces occlude and paired-face viewpoints agree", async ({
           geometry: "hyperbolic",
           id: 1,
           size: "large",
-          seed: 1,
           position: { x: 0, y: 0, z: 25 },
           velocity: { x: 0, y: 0, z: 0 },
         }),
@@ -122,6 +121,7 @@ test("hyperbolic surfaces occlude and paired-face viewpoints agree", async ({
           if (pixels[(y * width + x) * 4] > 80) count++;
       return count;
     };
+    const baseline = bright(capture());
     s.bullets = [
       {
         id: 2,
@@ -168,10 +168,10 @@ test("hyperbolic surfaces occlude and paired-face viewpoints agree", async ({
     const copies = scene.hyperbolic.cover.length;
     scene.destroy();
     root.remove();
-    return { hidden, visible, changed, lit, copies };
+    return { baseline, hidden, visible, changed, lit, copies };
   });
-  expect(result.hidden).toBe(0);
-  expect(result.visible).toBeGreaterThan(0);
+  expect(result.hidden).toBe(result.baseline);
+  expect(result.visible).toBeGreaterThan(result.baseline);
   expect(result.lit).toBeGreaterThan(100);
   expect(result.changed / Math.max(1, result.lit)).toBeLessThan(0.2);
   expect(result.copies).toBeGreaterThan(100);

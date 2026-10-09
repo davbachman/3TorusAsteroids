@@ -18,9 +18,9 @@ export const RESPAWN_INVULN = 2.0;
 export const EXTRA_LIFE_SCORE_STEP = 10000;
 export const ASTEROID_BULLET_HIT_PADDING = 1.75;
 
-export type AsteroidSize = 'large' | 'medium' | 'small';
+export type AsteroidSize = 'large' | 'medium' | 'small' | 'tiny';
 export type GameMode = 'title' | 'playing' | 'paused' | 'respawning' | 'gameOver';
-export type AsteroidSolid = 'tetrahedron' | 'cube' | 'octahedron' | 'dodecahedron' | 'icosahedron';
+export type AsteroidSolid = 'tetrahedron' | 'octahedron' | 'dodecahedron' | 'icosahedron';
 
 export interface ShipState {
   position: Vec3;
@@ -39,7 +39,6 @@ export interface AsteroidState {
   angularVelocity: Vec3;
   rotation: Quat;
   radius: number;
-  seed: number;
 }
 
 export interface BulletState {
@@ -91,46 +90,35 @@ export interface InputState {
   fullscreenPressed: boolean;
 }
 
+export const ASTEROID_STAGES: readonly AsteroidSize[] = ['large', 'medium', 'small', 'tiny'];
+
 export const ASTEROID_BASE_RADII: Record<AsteroidSize, number> = {
   large: 8,
   medium: 5,
   small: 3,
+  tiny: 1.5,
 };
 
 export const ASTEROID_SCORE: Record<AsteroidSize, number> = {
   large: 20,
   medium: 50,
-  small: 100,
+  small: 75,
+  tiny: 100,
 };
 
-const ASTEROID_SOLID_SEQUENCE: AsteroidSolid[] = [
-  'tetrahedron',
-  'cube',
-  'octahedron',
-  'dodecahedron',
-  'icosahedron',
-];
-
-const ASTEROID_FACE_COUNTS: Record<AsteroidSolid, number> = {
-  tetrahedron: 4,
-  cube: 6,
-  octahedron: 8,
-  dodecahedron: 12,
-  icosahedron: 20,
+const ASTEROID_SOLIDS: Record<AsteroidSize, AsteroidSolid> = {
+  large: 'icosahedron',
+  medium: 'dodecahedron',
+  small: 'octahedron',
+  tiny: 'tetrahedron',
 };
 
-const ASTEROID_REFERENCE_FACE_COUNT = 8;
-
-export function getAsteroidSolid(seed: number): AsteroidSolid {
-  return ASTEROID_SOLID_SEQUENCE[Math.abs(seed) % ASTEROID_SOLID_SEQUENCE.length];
+export function getAsteroidSolid(size: AsteroidSize): AsteroidSolid {
+  return ASTEROID_SOLIDS[size];
 }
 
-export function getAsteroidFaceCount(seed: number): number {
-  return ASTEROID_FACE_COUNTS[getAsteroidSolid(seed)];
-}
-
-export function getAsteroidRadius(size: AsteroidSize, seed: number): number {
-  return ASTEROID_BASE_RADII[size] * (getAsteroidFaceCount(seed) / ASTEROID_REFERENCE_FACE_COUNT);
+export function getAsteroidRadius(size: AsteroidSize): number {
+  return ASTEROID_BASE_RADII[size];
 }
 
 export function createShipState(): ShipState {

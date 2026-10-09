@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GameState, AsteroidSolid, WORLD_SIZE, getAsteroidSolid } from '../game/state';
+import { ASTEROID_STAGES, AsteroidSize, GameState, AsteroidSolid, WORLD_SIZE, getAsteroidSolid } from '../game/state';
 import { ghostOffsets, tileOffsets } from '../game/wrap';
 import { Quat, Vec3 } from '../utils/math';
 
@@ -104,14 +104,14 @@ export class EntityViewRenderer {
     private readonly shipGeometry: THREE.BufferGeometry,
     private readonly bulletGeometry: THREE.BufferGeometry,
     private readonly fragmentGeometry: THREE.BufferGeometry,
-    private readonly getAsteroidGeometry: (seed: number) => AsteroidGeometry,
+    private readonly getAsteroidGeometry: (size: AsteroidSize) => AsteroidGeometry,
     private readonly toroidal: boolean,
     faceMaterial?: THREE.MeshBasicMaterial,
   ) {
     this.lines = new LineBatch(scene, material);
     if (faceMaterial) {
-      for (let seed = 0; seed < 5; seed++) {
-        this.solids.set(getAsteroidSolid(seed), new SolidBatch(scene, getAsteroidGeometry(seed).solid, faceMaterial));
+      for (const size of ASTEROID_STAGES) {
+        this.solids.set(getAsteroidSolid(size), new SolidBatch(scene, getAsteroidGeometry(size).solid, faceMaterial));
       }
     }
   }
@@ -142,8 +142,8 @@ export class EntityViewRenderer {
       (state.time >= state.ship.invulnerableUntil || Math.floor(state.time * 10) % 2 === 0);
     if (showShip) this.emit(this.shipGeometry, state.ship.position, 4, state.ship.orientation, 1, undefined, this.toroidal);
     for (const asteroid of state.asteroids) {
-      this.emit(this.getAsteroidGeometry(asteroid.seed).edges, asteroid.position, asteroid.radius,
-        asteroid.rotation, asteroid.radius, this.solids.get(getAsteroidSolid(asteroid.seed)));
+      this.emit(this.getAsteroidGeometry(asteroid.size).edges, asteroid.position, asteroid.radius,
+        asteroid.rotation, asteroid.radius, this.solids.get(getAsteroidSolid(asteroid.size)));
     }
     for (const bullet of state.bullets) this.emit(this.bulletGeometry, bullet.position, 1);
     for (const fragment of state.fragments) {
