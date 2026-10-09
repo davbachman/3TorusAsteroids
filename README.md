@@ -38,13 +38,13 @@ npm ci
 npm run dev
 npm test
 npm run build
-npx playwright install chromium
+npx playwright install chromium webkit
 npm run test:browser
 ```
 
 `npm run build` includes strict TypeScript checking. Browser tests cover desktop and mobile input, pointer steering, focus loss, opaque occlusion, wall clipping, render batching, and the production preview. Run a build before browser tests so the preview matches the source. If using an existing Chromium installation, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable path.
 
-`npm run preview` serves the production build at `/3TorusAsteroids/`, matching GitHub Pages. `npm run test:preview` builds and tests that route. CI runs the unit tests, build, and browser tests on pull requests and before deploying main.
+`npm run preview` serves the production build at `/3TorusAsteroids/`, matching GitHub Pages. `npm run test:preview` builds and tests that route. CI runs the unit tests, build, and Chromium browser tests on Linux, plus production startup tests in Playwright WebKit on macOS, on pull requests and before deploying main. WebKit covers both geometries with mouse, keyboard, touch, pause/resume, and unavailable audio. It uses Safari’s browser engine; it is not the installed Safari application. To run only this suite locally, use `npx playwright test --project=webkit` after building.
 
 Bullets register hits across the full asteroid, including near visible edges and corners. A small aiming allowance keeps grazing shots forgiving, while swept collision checks prevent fast shots from skipping through a target.
 
