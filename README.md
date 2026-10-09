@@ -56,7 +56,7 @@ This mode uses the Seifert–Weber space, rather than the spherical Poincaré do
 
 The simulation uses the hyperboloid model and Lorentz isometries for geodesic movement, parallel transport, and 108° face pairings. Entity positions are stored in Klein coordinates; velocity and orientation are measured in the canonical local orthonormal frame. Collision sweeps use hyperbolic distances and an adaptive speed bound, including images across paired faces. The external view uses the Klein model, where geodesic faces and edges are flat/straight. The first-person renderer moves the observer to the origin by a Lorentz isometry before projection, rather than copying objects with Euclidean translations.
 
-For finite rendering cost, the repeating view fades at 3.2 curvature radii (2.7 on devices with a coarse pointer). This is a draw distance, not a boundary of the space. The visible cover is enumerated around the observer and regenerated as they move. Browser tests compare equivalent views across a face pairing and verify opaque occlusion; unit tests check the metric, face inverses, edge/vertex cycles, transport, safe spawns, and collision sweeps.
+For finite rendering cost, the repeating view fades out at 4.0 curvature radii (3.2 on devices with a coarse pointer), with fading confined to the final 0.55 radii. This is a draw distance, not a boundary of the space. The visible cover is enumerated around the observer and regenerated as they move. Browser tests compare equivalent views across a face pairing and verify opaque occlusion; unit tests check the metric, face inverses, edge/vertex cycles, transport, safe spawns, and collision sweeps.
 
 Mathematical references and visual inspiration:
 

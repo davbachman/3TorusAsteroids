@@ -182,7 +182,9 @@ export class HyperbolicScene {
     fragment: THREE.BufferGeometry,
     getAsteroid: (seed: number) => AsteroidGeometry,
   ) {
-    this.horizon = matchMedia("(pointer:coarse)").matches ? 2.7 : 3.2;
+    // Keep more of the repeating structure visible; touch devices use a
+    // smaller cover because hyperbolic cell counts grow exponentially.
+    this.horizon = matchMedia("(pointer:coarse)").matches ? 3.2 : 4.0;
     const planes = H.FACE_NORMALS.map(
       (n) =>
         new THREE.Plane(
