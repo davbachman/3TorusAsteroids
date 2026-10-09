@@ -114,3 +114,27 @@ test('POV edge checkbox works with keyboard and persists through a new game and 
   expect(bounds!.y).toBeGreaterThan(0);
   expect(bounds!.y+bounds!.height).toBeLessThan(390);
 });
+
+for (const geometry of ['euclidean', 'hyperbolic'] as const) {
+  test(`${geometry} fires with Space after pointer use of toolbar controls`, async ({page}) => {
+    await load(page);
+    await page.locator(`input[value="${geometry}"]`).check();await start(page);
+    const controls=page.getByText('Controls', {exact:true});
+    const help=page.locator('details.help');
+    await controls.click();
+    await page.getByRole('checkbox', {name:'Show POV domain edges'}).uncheck();
+    await controls.click();
+    await page.keyboard.press('Space');await advance(page);
+    expect((await state(page)).bullets.length).toBeGreaterThan(0);
+    await expect(help).not.toHaveAttribute('open');
+    await page.getByRole('button', {name:'Mute',exact:true}).click();
+    await advance(page,300);
+    const before=(await state(page)).nextEntityId;
+    await page.keyboard.press('Space');await advance(page);
+    expect((await state(page)).nextEntityId).toBeGreaterThan(before);
+    await expect(page.getByRole('button', {name:'Unmute',exact:true})).toBeVisible();
+    // Explicit keyboard focus must still allow native summary activation.
+    await controls.focus();await page.keyboard.press('Space');
+    await expect(help).toHaveAttribute('open');
+  });
+}

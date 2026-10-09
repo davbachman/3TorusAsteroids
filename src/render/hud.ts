@@ -74,6 +74,13 @@ export class HudRenderer {
     wrapper.append(this.toolbar, this.touch, this.announcement);
     viewport.append(this.externalLabel, this.povLabel, this.divider, this.reticle, this.panel);
     const options = { signal: this.abort.signal };
+    // Pointer activation must not leave toolbar controls consuming flight keys.
+    // Keyboard activation (detail === 0) keeps focus for native accessibility.
+    this.toolbar.addEventListener('click', event => {
+      if (event.detail === 0 || !(event.target instanceof Element)) return;
+      const control = event.target.closest<HTMLElement>('button,summary,input');
+      if (control === document.activeElement) control?.blur();
+    }, options);
     this.panel.querySelector('[data-menu]')!.addEventListener('click',()=>this.actions?.menu(),options);
     this.choices.addEventListener('change',event=>{const target=event.target as HTMLInputElement;if(target.value==='euclidean'||target.value==='hyperbolic')this.actions?.geometry(target.value);},options);
     this.pause.addEventListener('click', () => this.actions?.press('KeyP'), options);
