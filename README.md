@@ -27,6 +27,7 @@ Every asteroid starts as an icosahedron. Successive hits change it into a dodeca
 - `Space`: fire
 - `P`: pause
 - `F`: toggle fullscreen
+- `E`: toggle fundamental domain edges in the POV view
 - `Enter` or `Space` on the title screen: start or restart
 
 
@@ -34,7 +35,7 @@ The game pauses when the window loses focus or the tab is hidden. Use **Resume**
 
 In hyperbolic mode, the **Model** dropdown at the bottom of the external pane switches between **Poincaré ball** (the default, with curved geodesics) and **Klein** (straight geodesics). This changes only the external display. The choice carries across new games and geometry changes until reload. Spherical mode displays a single curved dodecahedral cell using stereographic projection.
 
-Open **Controls** and uncheck **Show POV domain edges** to hide the cube or dodecahedron boundaries in the first-person view. External boundaries and asteroid outlines stay visible. The setting carries across new games and geometry changes until the page is reloaded.
+Press **E**, or open **Controls** and uncheck **Show POV domain edges**, to hide the cube or dodecahedron boundaries in the first-person view. The shortcut and checkbox stay synchronized. External boundaries and asteroid outlines stay visible. The setting carries across new games and geometry changes until the page is reloaded.
 
 ## Development and checks
 

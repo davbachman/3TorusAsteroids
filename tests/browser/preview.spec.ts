@@ -165,3 +165,43 @@ test('external model selector works on desktop and mobile without consuming fire
   await page.locator('input[value="spherical"]').check();await expect(model).toBeHidden();
   await page.locator('input[value="hyperbolic"]').check();await expect(model).toHaveValue('poincare');
 });
+
+for (const geometry of ['euclidean','hyperbolic','spherical'] as const) {
+  test(`${geometry} E toggles POV edges once per press and stays synchronized with the checkbox`,async({page})=>{
+    await load(page);await page.locator(`input[value="${geometry}"]`).check();
+    const edges=page.getByRole('checkbox',{name:'Show POV domain edges',includeHidden:true});
+    // It works on the title screen without advancing the simulation.
+    await page.locator('canvas').click({position:{x:20,y:60}});
+    await page.keyboard.press('e');await expect(edges).not.toBeChecked();
+    await start(page);
+    await page.keyboard.down('e');await expect(edges).toBeChecked();
+    await page.keyboard.down('e');await expect(edges).toBeChecked();
+    await page.keyboard.up('e');
+    await page.getByText('Controls',{exact:true}).click();
+    await edges.uncheck();
+    await page.keyboard.press('e');await expect(edges).toBeChecked();
+    await page.getByText('Controls',{exact:true}).click();
+    await page.getByRole('button',{name:'Pause',exact:true}).click();await advance(page);
+    await page.keyboard.press('e');await expect(edges).not.toBeChecked();
+    await page.keyboard.press('Control+e');await expect(edges).not.toBeChecked();
+    expect((await state(page)).mode).toBe('paused');
+  });
+}
+
+test('keyboard model selection returns steering, thrust, fire, E, and pause to the game',async({page})=>{
+  await load(page);await page.locator('input[value="hyperbolic"]').check();await start(page);
+  const model=page.getByRole('combobox',{name:'External hyperbolic model'});
+  for(const [key,value] of [['ArrowUp','klein'],['ArrowDown','poincare']]) {
+    await model.focus();await page.keyboard.press(key);await page.keyboard.press('Enter');
+    await expect(model).toHaveValue(value);await expect(model).not.toBeFocused();
+  }
+  await page.keyboard.down('z');await advance(page,200);await page.keyboard.up('z');
+  const before=await state(page);expect(Math.hypot(before.ship.velocity.x,before.ship.velocity.y,before.ship.velocity.z)).toBeGreaterThan(0);
+  await page.keyboard.down('ArrowRight');await advance(page,200);await page.keyboard.up('ArrowRight');
+  expect((await state(page)).ship.orientation).not.toEqual(before.ship.orientation);
+  await page.keyboard.press('Space');await advance(page);expect((await state(page)).bullets.length).toBeGreaterThan(0);
+  await page.keyboard.press('e');
+  await expect(page.getByRole('checkbox',{name:'Show POV domain edges',includeHidden:true})).not.toBeChecked();
+  await page.keyboard.press('p');await advance(page);expect((await state(page)).mode).toBe('paused');
+  await model.focus();await page.keyboard.press('Escape');await expect(model).not.toBeFocused();
+});

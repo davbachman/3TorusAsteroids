@@ -85,7 +85,10 @@ export class SceneRenderer {
   setPovDomainEdges(visible: boolean): void {
     this.showPovDomainEdges = visible;
     this.povBoundary.object.visible = visible;
+    this.hud.setPovDomainEdges(visible);
   }
+
+  togglePovDomainEdges(): void { this.setPovDomainEdges(!this.showPovDomainEdges); }
 
   setExternalModel(model: HyperbolicModel): void {
     this.externalModel = model;

@@ -42,9 +42,9 @@ export class HudRenderer {
     this.toolbar.innerHTML = `<div class="stats" aria-label="Game statistics"></div><nav aria-label="Game controls">
       <button type="button" data-pause>Pause</button><button type="button" data-mute aria-pressed="false">Mute</button>
       <button type="button" data-fullscreen>Fullscreen</button><details class="help"><summary>Controls</summary><div>
-      <label class="view-option"><input type="checkbox" data-pov-edges checked> Show POV domain edges</label>
+      <label class="view-option"><input type="checkbox" data-pov-edges aria-keyshortcuts="E" checked> Show POV domain edges</label>
       <p>Move the pointer over the POV view to steer with a trackpad or mouse. No click needed.</p><p>Arrow keys: turn and look. Z: thrust. Space: fire. P: pause or resume. F: fullscreen.</p>
-      <p>On touch screens, hold the arrows and thrust; tap Fire.</p>
+      <p>E: toggle POV domain edges.</p><p>On touch screens, hold the arrows and thrust; tap Fire.</p>
       <p data-geometry-help></p>
       </div></details></nav>`;
     this.stats = this.toolbar.querySelector('.stats')!;
@@ -90,14 +90,15 @@ export class HudRenderer {
       if (control === document.activeElement) control?.blur();
     }, options);
     const modelSelect = this.modelControl.querySelector('select')!;
-    let pointerSelection = false;
-    modelSelect.addEventListener('pointerdown', () => { pointerSelection = true; }, options);
-    modelSelect.addEventListener('keydown', () => { pointerSelection = false; }, options);
     modelSelect.addEventListener('change', () => {
       const model = modelSelect.value;
       if (model === 'klein' || model === 'poincare') this.actions?.externalModel(model);
-      if (pointerSelection) modelSelect.blur();
-      pointerSelection = false;
+      // Native selectors may commit via keyboard or browser UI without a
+      // pointer event. Always return the flight keys after committing a choice.
+      modelSelect.blur();
+    }, options);
+    modelSelect.addEventListener('keyup', event => {
+      if (event.code === 'Enter' || event.code === 'Escape') modelSelect.blur();
     }, options);
     this.panel.querySelector('[data-menu]')!.addEventListener('click',()=>this.actions?.menu(),options);
     this.choices.addEventListener('change',event=>{const target=event.target as HTMLInputElement;if(target.value==='euclidean'||target.value==='hyperbolic'||target.value==='spherical')this.actions?.geometry(target.value);},options);
@@ -126,6 +127,10 @@ export class HudRenderer {
   }
 
   bind(actions: HudActions): void { this.actions = actions; }
+
+  setPovDomainEdges(visible: boolean): void {
+    this.toolbar.querySelector<HTMLInputElement>('[data-pov-edges]')!.checked = visible;
+  }
 
   resize(external: Viewport, pov: Viewport): void {
     for (const [label, rect] of [[this.externalLabel, external], [this.povLabel, pov]] as const) {

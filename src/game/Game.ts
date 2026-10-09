@@ -32,7 +32,9 @@ export class Game {
   constructor(private readonly root: HTMLElement) {
     this.scene = new SceneRenderer(root);
     this.state = seedTitleScene(createInitialGameState());
-    this.input = new KeyboardInput(window, () => this.audio.unlock(), () => { void this.scene.toggleFullscreen(); });
+    this.input = new KeyboardInput(window, () => this.audio.unlock(),
+      () => { void this.scene.toggleFullscreen(); },
+      () => { this.scene.togglePovDomainEdges(); this.render(); });
     this.pointer = new PointerSteering(this.scene.viewport, () => this.state.mode === 'playing' && this.state.ship.alive);
     this.scene.bindControls({
       press: code => this.input.press(code), hold: (code, id) => this.input.hold(code, id),

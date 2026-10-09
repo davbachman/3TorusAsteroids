@@ -1,6 +1,6 @@
 import { InputState } from '../game/state';
 
-const GAME_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'KeyZ', 'KeyP', 'KeyF', 'Enter']);
+const GAME_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'KeyZ', 'KeyP', 'KeyF', 'KeyE', 'Enter']);
 
 export class KeyboardInput {
   private readonly held = new Set<string>();
@@ -8,7 +8,7 @@ export class KeyboardInput {
   private readonly pressed = new Set<string>();
 
   constructor(private readonly target: Window, private readonly onInteraction?: () => void,
-    private readonly onFullscreen?: () => void) {}
+    private readonly onFullscreen?: () => void, private readonly onTogglePovEdges?: () => void) {}
 
   private readonly keydownHandler = (event: KeyboardEvent) => {
     if (!GAME_KEYS.has(event.code) || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -27,6 +27,7 @@ export class KeyboardInput {
   press(code: string, allowStart = true): void {
     this.onInteraction?.();
     if (code === 'KeyF' && this.onFullscreen) this.onFullscreen();
+    else if (code === 'KeyE') this.onTogglePovEdges?.();
     else this.pressed.add(code);
     if (allowStart && (code === 'Space' || code === 'Enter')) this.pressed.add('Start');
   }
