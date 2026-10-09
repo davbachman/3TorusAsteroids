@@ -1,5 +1,6 @@
 import { GeometryId } from '../geometry/types';
 import { CURVATURE_RADIUS } from '../geometry/hyperbolic';
+import { CURVATURE_RADIUS as SPHERICAL_RADIUS } from '../geometry/spherical';
 import { AudioEngine } from '../audio/AudioEngine';
 import { PointerSteering } from '../input/pointer';
 import { KeyboardInput } from '../input/keyboard';
@@ -198,9 +199,9 @@ export class Game {
       level: this.state.level,
       world: {
         cubeSize: this.state.geometry==='euclidean'?WORLD_SIZE:undefined,
-        domain: this.state.geometry==='hyperbolic'?'Seifert–Weber dodecahedron':'cube',
-        coordinates: this.state.geometry==='hyperbolic'?'Klein ball':'Euclidean',
-        curvatureRadius:this.state.geometry==='hyperbolic'?CURVATURE_RADIUS:undefined,
+        domain: this.state.geometry==='spherical'?'Poincaré dodecahedron':this.state.geometry==='hyperbolic'?'Seifert–Weber dodecahedron':'cube',
+        coordinates: this.state.geometry==='spherical'?'Spherical gnomonic chart':this.state.geometry==='hyperbolic'?'Klein ball':'Euclidean',
+        curvatureRadius:this.state.geometry==='spherical'?SPHERICAL_RADIUS:this.state.geometry==='hyperbolic'?CURVATURE_RADIUS:undefined,
         origin: 'center',
         axes: '+X right, +Y up, +Z depth (far side)',
       },

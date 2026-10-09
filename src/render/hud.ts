@@ -52,6 +52,7 @@ export class HudRenderer {
       <fieldset class="geometry-choices"><legend>Choose your geometry</legend>
       <label><input type="radio" name="geometry" value="euclidean" checked> <span>Euclidean (3-Torus)</span></label>
       <label><input type="radio" name="geometry" value="hyperbolic"> <span>Hyperbolic (Seifert–Weber Dodecahedral)</span></label>
+      <label><input type="radio" name="geometry" value="spherical"> <span>Spherical (Poincaré Dodecahedral)</span></label>
       </fieldset><p class="geometry-description"></p><p class="instructions">Pointer over POV or arrows to turn<br>Z to thrust · Space to fire<br>Cross a wall to emerge on the opposite side.</p><button type="button" data-start>Start game</button><button type="button" data-menu hidden>Change geometry / new game</button>`;
     this.choices=this.panel.querySelector('.geometry-choices')!;
     this.description=this.panel.querySelector('.geometry-description')!;
@@ -82,7 +83,7 @@ export class HudRenderer {
       if (control === document.activeElement) control?.blur();
     }, options);
     this.panel.querySelector('[data-menu]')!.addEventListener('click',()=>this.actions?.menu(),options);
-    this.choices.addEventListener('change',event=>{const target=event.target as HTMLInputElement;if(target.value==='euclidean'||target.value==='hyperbolic')this.actions?.geometry(target.value);},options);
+    this.choices.addEventListener('change',event=>{const target=event.target as HTMLInputElement;if(target.value==='euclidean'||target.value==='hyperbolic'||target.value==='spherical')this.actions?.geometry(target.value);},options);
     this.pause.addEventListener('click', () => this.actions?.press('KeyP'), options);
     this.start.addEventListener('click', () => this.actions?.press(this.mode === 'paused' ? 'KeyP' : 'Enter'), options);
     this.toolbar.querySelector('[data-fullscreen]')!.addEventListener('click', () => this.actions?.fullscreen(), options);
@@ -133,8 +134,10 @@ export class HudRenderer {
     if (this.geometry !== state.geometry) {
       this.geometry = state.geometry;
       this.panel.querySelector<HTMLInputElement>(`[value="${state.geometry}"]`)!.checked = true;
-      this.povLabel.textContent = state.geometry === 'hyperbolic' ? 'HYPERBOLIC POV' : 'TORUS POV';
-      const description = state.geometry === 'hyperbolic'
+      this.povLabel.textContent = state.geometry === 'spherical' ? 'SPHERICAL POV' : state.geometry === 'hyperbolic' ? 'HYPERBOLIC POV' : 'TORUS POV';
+      const description = state.geometry === 'spherical'
+        ? 'A dodecahedral universe with positive curvature. Opposite faces join with a 36° twist.'
+        : state.geometry === 'hyperbolic'
         ? 'A dodecahedral universe with negative curvature. Opposite faces join with a 108° twist.'
         : 'A flat universe inside a cube. Opposite faces join without a twist.';
       this.description.textContent = description;

@@ -57,7 +57,7 @@ test('POV faces hide rear edges and objects; clipping removes exterior geometry;
   expect(result.drawCalls).toBeLessThanOrEqual(9);
 });
 
-for (const geometry of ['euclidean', 'hyperbolic'] as const) {
+for (const geometry of ['euclidean', 'hyperbolic', 'spherical'] as const) {
   test(`${geometry} POV boundary toggle preserves the external view and asteroid outlines`, async ({page}) => {
     await load(page);
     const result = await page.evaluate(async geometry => {

@@ -65,15 +65,16 @@ test("mobile users can select and start the hyperbolic mode", async ({
   ).toBeVisible();
 });
 
-test("hyperbolic surfaces occlude and paired-face viewpoints agree", async ({
+for (const geometry of ["hyperbolic", "spherical"] as const) {
+test(`${geometry} surfaces occlude and paired-face viewpoints agree`, async ({
   page,
 }) => {
   await load(page);
-  const result = await page.evaluate(async () => {
+  const result = await page.evaluate(async (geometry) => {
     const scenePath = "/src/render/scene.ts",
       statePath = "/src/game/state.ts",
       spawnPath = "/src/game/spawn.ts",
-      hyperPath = "/src/geometry/hyperbolic.ts";
+      hyperPath = `/src/geometry/${geometry}.ts`;
     const { SceneRenderer } = await import(scenePath),
       { createInitialGameState } = await import(statePath),
       { makeAsteroid } = await import(spawnPath),
@@ -82,13 +83,13 @@ test("hyperbolic surfaces occlude and paired-face viewpoints agree", async ({
     root.style.cssText = "position:fixed;inset:0";
     document.body.append(root);
     const scene = new SceneRenderer(root),
-      s = createInitialGameState("hyperbolic");
+      s = createInitialGameState(geometry);
     s.mode = "playing";
     s.ship.alive = false;
     s.asteroids = [
       {
         ...makeAsteroid({
-          geometry: "hyperbolic",
+          geometry,
           id: 1,
           size: "large",
           position: { x: 0, y: 0, z: 25 },
@@ -136,9 +137,9 @@ test("hyperbolic surfaces occlude and paired-face viewpoints agree", async ({
     s.bullets = [];
     const n = H.FACE_NORMALS[0];
     s.ship.position = {
-      x: n.x * H.FACE_OFFSET * 50,
-      y: n.y * H.FACE_OFFSET * 50,
-      z: n.z * H.FACE_OFFSET * 50,
+      x: n.x * H.FACE_OFFSET * H.CURVATURE_RADIUS,
+      y: n.y * H.FACE_OFFSET * H.CURVATURE_RADIUS,
+      z: n.z * H.FACE_OFFSET * H.CURVATURE_RADIUS,
     };
     const before = capture(),
       g = H.GENERATORS[0],
@@ -165,14 +166,61 @@ test("hyperbolic surfaces occlude and paired-face viewpoints agree", async ({
         if (Math.max(before[i], after[i]) > 80) lit++;
         if (Math.abs(before[i] - after[i]) > 80) changed++;
       }
-    const copies = scene.hyperbolic.cover.length;
+    const copies = scene[geometry].cover.length;
     scene.destroy();
     root.remove();
     return { baseline, hidden, visible, changed, lit, copies };
-  });
+  }, geometry);
   expect(result.hidden).toBe(result.baseline);
   expect(result.visible).toBeGreaterThan(result.baseline);
   expect(result.lit).toBeGreaterThan(100);
   expect(result.changed / Math.max(1, result.lit)).toBeLessThan(0.2);
   expect(result.copies).toBeGreaterThan(100);
+});
+
+}
+
+test('spherical perspective sees beyond the equator and grows toward the antipode', async ({page}) => {
+  await load(page);
+  const widths = await page.evaluate(async () => {
+    const scenePath='/src/render/scene.ts', statePath='/src/game/state.ts', spawnPath='/src/game/spawn.ts', spherePath='/src/geometry/spherical.ts';
+    const {SceneRenderer}=await import(scenePath), {createInitialGameState}=await import(statePath), {makeAsteroid}=await import(spawnPath), S=await import(spherePath);
+    const root=document.createElement('div');root.style.cssText='position:fixed;inset:0';document.body.append(root);
+    const scene=new SceneRenderer(root), s=createInitialGameState('spherical');
+    s.mode='playing';s.ship.alive=false;
+    s.asteroids=[makeAsteroid({geometry:'spherical',id:1,size:'large',position:{x:0,y:0,z:0},velocity:{x:0,y:0,z:0}})];
+    scene.setPovDomainEdges(false);scene.render(s);
+    const gl=scene.renderer.getContext(), width=gl.drawingBufferWidth,height=gl.drawingBufferHeight;
+    const results=[];
+    // Isolate one lifted image to test perspective, independently of occlusion
+    // by the other 119 images of the same asteroid.
+    for (const angle of [0.4, Math.PI/2, Math.PI-0.4]) {
+      scene.spherical.cover=[S.boost({x:0,y:0,z:angle*S.CURVATURE_RADIUS})];
+      scene.render(s);
+      const pixels=new Uint8Array(width*height*4);
+      gl.readPixels(0,0,width,height,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+      let min=width,max=-1;
+      for(let y=0;y<height;y++)for(let x=Math.floor(width/2);x<width;x++)
+        if(pixels[(y*width+x)*4]>80) { min=Math.min(min,x);max=Math.max(max,x); }
+      results.push(max-min+1);
+    }
+    scene.destroy();root.remove();return results;
+  });
+  expect(widths[1]).toBeGreaterThan(10);
+  expect(widths[0]).toBeGreaterThan(widths[1]*2);
+  expect(widths[2]).toBeGreaterThan(widths[1]*2);
+  expect(Math.abs(widths[0]-widths[2])).toBeLessThan(5);
+});
+
+test('spherical choice is usable in phone portrait and landscape', async ({page}) => {
+  await load(page);
+  for (const size of [{width:390,height:844},{width:844,height:390}]) {
+    await page.setViewportSize(size);
+    await page.getByRole('radio',{name:'Spherical (Poincaré Dodecahedral)',exact:true}).check();
+    await start(page);
+    expect((await state(page)).geometry).toBe('spherical');
+    await expect(page.getByText('SPHERICAL POV',{exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'Pause',exact:true}).click();await advance(page);
+    await page.getByRole('button',{name:'Change geometry / new game',exact:true}).click();
+  }
 });

@@ -3,6 +3,9 @@ import { wrapPosition } from "../game/wrap";
 import { sweptSphereTime, wrappedSphereOverlap } from "../game/collision";
 import { GeometryId } from "./types";
 import * as hyper from "./hyperbolic";
+import * as sphere from "./spherical";
+
+const curved = (geometry: GeometryId) => geometry === "spherical" ? sphere : hyper;
 
 export function moveBody(
   geometry: GeometryId,
@@ -11,8 +14,8 @@ export function moveBody(
   dt: number,
   orientation?: Quat,
 ) {
-  return geometry === "hyperbolic"
-    ? hyper.move(position, velocity, dt, orientation)
+  return geometry !== "euclidean"
+    ? curved(geometry).move(position, velocity, dt, orientation)
     : {
         position: wrapPosition(addScaledVec3(position, velocity, dt), 100),
         velocity,
@@ -22,12 +25,12 @@ export function moveBody(
       };
 }
 export function canonicalPosition(geometry: GeometryId, position: Vec3): Vec3 {
-  return geometry === "hyperbolic"
-    ? hyper.project(hyper.reduce(hyper.lift(position)).point)
+  return geometry !== "euclidean"
+    ? curved(geometry).project(curved(geometry).reduce(curved(geometry).lift(position)).point)
     : wrapPosition(position, 100);
 }
 export function insideDomain(geometry: GeometryId, position: Vec3): boolean {
-  return geometry === "euclidean" || hyper.inside(position);
+  return geometry === "euclidean" || curved(geometry).inside(position);
 }
 export function overlap(
   geometry: GeometryId,
@@ -36,8 +39,8 @@ export function overlap(
   b: Vec3,
   rb: number,
 ): boolean {
-  return geometry === "hyperbolic"
-    ? hyper.overlaps(a, ra, b, rb)
+  return geometry !== "euclidean"
+    ? curved(geometry).overlaps(a, ra, b, rb)
     : wrappedSphereOverlap(a, ra, b, rb, 100);
 }
 export function sweep(
@@ -49,8 +52,8 @@ export function sweep(
   db: Vec3,
   rb: number,
 ): number | null {
-  return geometry === "hyperbolic"
-    ? hyper.sweptHit(
+  return geometry !== "euclidean"
+    ? curved(geometry).sweptHit(
         { position: a, displacement: da },
         ra,
         { position: b, displacement: db },

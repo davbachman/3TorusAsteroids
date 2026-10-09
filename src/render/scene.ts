@@ -1,4 +1,5 @@
-import { HyperbolicScene } from './hyperbolicScene';
+import { CurvedScene } from './curvedScene';
+import * as Spherical from '../geometry/spherical';
 import { GeometryId } from '../geometry/types';
 import { VERTICES } from '../geometry/hyperbolic';
 import * as THREE from 'three';
@@ -37,7 +38,8 @@ export class SceneRenderer {
   private readonly asteroidGeometryCache = new Map<AsteroidSolid, AsteroidGeometry>();
   private readonly observer: ResizeObserver;
   private geometry:GeometryId='euclidean';
-  private hyperbolic?:HyperbolicScene;
+  private hyperbolic?:CurvedScene;
+  private spherical?:CurvedScene;
   private viewportWidth = 1;
   private viewportHeight = 1;
 
@@ -104,7 +106,8 @@ export class SceneRenderer {
     // Fit the cube's bounding sphere to the narrower field of view.
     const vertical = THREE.MathUtils.degToRad(this.externalCamera.fov / 2);
     const horizontal = Math.atan(Math.tan(vertical) * this.externalCamera.aspect);
-    const radius=this.geometry==='hyperbolic'?Math.hypot(VERTICES[0].x,VERTICES[0].y,VERTICES[0].z):Math.sqrt(3)*WORLD_SIZE/2;
+    const vertices=this.geometry==='spherical'?Spherical.VERTICES:VERTICES;
+    const radius=this.geometry!=='euclidean'?Math.hypot(vertices[0].x,vertices[0].y,vertices[0].z):Math.sqrt(3)*WORLD_SIZE/2;
     const distance = radius / Math.sin(Math.min(vertical, horizontal)) * 1.06;
     this.externalCamera.position.set(260, 180, 110).normalize().multiplyScalar(distance);
     this.externalCamera.far = distance + WORLD_SIZE * 3;
@@ -116,11 +119,13 @@ export class SceneRenderer {
   render(state: GameState): void {
     if(this.geometry!==state.geometry){this.geometry=state.geometry;this.resize();}
     let externalScene=this.externalScene,povScene=this.torusScene;
-    if(state.geometry==='hyperbolic') {
-      this.hyperbolic??=new HyperbolicScene(this.shipGeometry,this.bulletGeometry,this.fragmentGeometry,size=>this.getAsteroidGeometry(size));
+    if(state.geometry!=='euclidean') {
+      const curved = state.geometry==='spherical'
+        ? this.spherical??=new CurvedScene(this.shipGeometry,this.bulletGeometry,this.fragmentGeometry,size=>this.getAsteroidGeometry(size),Spherical)
+        : this.hyperbolic??=new CurvedScene(this.shipGeometry,this.bulletGeometry,this.fragmentGeometry,size=>this.getAsteroidGeometry(size));
       this.shipCamera.position.set(0,0,0);this.shipCamera.up.set(0,1,0);this.shipCamera.lookAt(0,0,1);
-      this.hyperbolic.update(state,this.shipCamera,this.showPovDomainEdges);
-      externalScene=this.hyperbolic.external;povScene=this.hyperbolic.pov;
+      curved.update(state,this.shipCamera,this.showPovDomainEdges);
+      externalScene=curved.external;povScene=curved.pov;
     } else {
       const forward = forwardFromQuat(state.ship.orientation), up = upFromQuat(state.ship.orientation);
       const eye = state.ship.position;
@@ -169,7 +174,7 @@ export class SceneRenderer {
   }
 
   destroy(): void {
-    this.observer.disconnect(); this.hud.destroy(); this.hyperbolic?.destroy();
+    this.observer.disconnect(); this.hud.destroy(); this.hyperbolic?.destroy(); this.spherical?.destroy();
     this.externalEntityViews.dispose(); this.torusEntityViews.dispose();
     for (const geometry of this.asteroidGeometryCache.values()) { geometry.edges.dispose(); geometry.solid.dispose(); }
     this.asteroidGeometryCache.clear();

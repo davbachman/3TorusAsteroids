@@ -22,7 +22,7 @@ test('hyperbolic mode loads in the production bundle',async({page})=>{
 test.describe('real-time startup', () => {
   test.use({hasTouch:true});
 
-  for (const geometry of ['euclidean', 'hyperbolic'] as const) {
+  for (const geometry of ['euclidean', 'hyperbolic', 'spherical'] as const) {
     for (const activation of ['mouse', 'keyboard', 'touch'] as const) {
       test(`${geometry} starts with ${activation} and resumes after pause`, async ({page}) => {
         const errors:string[]=[];
@@ -70,7 +70,7 @@ test.describe('real-time startup', () => {
   }
 });
 
-for (const geometry of ['euclidean', 'hyperbolic'] as const) {
+for (const geometry of ['euclidean', 'hyperbolic', 'spherical'] as const) {
   test(`${geometry} renders every asteroid damage stage in the production bundle`, async ({page}) => {
     const errors:string[]=[];
     page.on('pageerror', error => errors.push(error.message));
@@ -115,7 +115,7 @@ test('POV edge checkbox works with keyboard and persists through a new game and 
   expect(bounds!.y+bounds!.height).toBeLessThan(390);
 });
 
-for (const geometry of ['euclidean', 'hyperbolic'] as const) {
+for (const geometry of ['euclidean', 'hyperbolic', 'spherical'] as const) {
   test(`${geometry} fires with Space after pointer use of toolbar controls`, async ({page}) => {
     await load(page);
     await page.locator(`input[value="${geometry}"]`).check();await start(page);

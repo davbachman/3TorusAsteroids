@@ -1,42 +1,61 @@
 import * as THREE from "three";
-import * as H from "../geometry/hyperbolic";
+import * as Hyper from "../geometry/hyperbolic";
+import * as Spherical from "../geometry/spherical";
 import { ASTEROID_STAGES, AsteroidSize, GameState, getAsteroidSolid } from "../game/state";
 import { Quat, Vec3, lengthVec3, quatIdentity, v3 } from "../utils/math";
 import { AsteroidGeometry } from "./entityViews";
+
+type CurvedSpace = typeof Hyper | typeof Spherical;
 
 const VERTEX_SHADER = `
 attribute vec4 h0; attribute vec4 h1; attribute vec4 h2; attribute vec4 h3;
 attribute vec4 sizeInk;
 uniform float curvatureRadius;
+uniform bool spherical; uniform bool pov;
+varying vec4 spherePoint;
 varying float distanceH; varying float ink;
 #include <clipping_planes_pars_vertex>
 void main() {
   vec3 tangent=position*sizeInk.xyz/curvatureRadius;
   float r=length(tangent);
-  float sh=(exp(r)-exp(-r))*0.5;
-  float ch=(exp(r)+exp(-r))*0.5;
+  float sh=spherical?sin(r):(exp(r)-exp(-r))*0.5;
+  float ch=spherical?cos(r):(exp(r)+exp(-r))*0.5;
   vec4 local=vec4(tangent*(r>0.00001?sh/r:1.0),ch);
   vec4 point=mat4(h0,h1,h2,h3)*local;
+  spherePoint=point;
   distanceH=log(max(1.0,point.w)+sqrt(max(0.0,point.w*point.w-1.0)));
   ink=sizeInk.w;
   vec3 projected=curvatureRadius*point.xyz/point.w;
+  if(spherical && pov) projected=point.xyz;
   vec4 mvPosition=modelViewMatrix*vec4(projected,1.0);
   gl_Position=projectionMatrix*mvPosition;
+  // Depth is angular distance, written per fragment. Keep homogeneous XY/W
+  // so the back hemisphere projects in its correct viewing direction.
+  if(spherical && pov) gl_Position.z=0.0;
   #include <clipping_planes_vertex>
 }`;
 const FRAGMENT_SHADER = `
 uniform float horizon; uniform float surface;
+varying vec4 spherePoint;
 varying float distanceH; varying float ink;
 #include <clipping_planes_pars_fragment>
 void main() {
   #include <clipping_planes_fragment>
+  #ifdef SPHERICAL_POV
+    float angle=acos(clamp(normalize(spherePoint).w,-1.0,1.0));
+    if(angle<0.0004) discard;
+    // A small surface bias keeps the white edges on their opaque faces.
+    gl_FragDepth=clamp(angle/3.141592653589793 + surface*0.000002,0.0,1.0);
+    gl_FragColor=vec4(vec3((1.0-surface)*ink),1.0);
+  #else
   float fade=horizon>0.0?1.0-smoothstep(horizon-0.55,horizon,distanceH):1.0;
   if(horizon>0.0 && distanceH>horizon) discard;
   gl_FragColor=vec4(vec3((1.0-surface)*ink*fade),1.0);
+  #endif
 }`;
 
-// Each instance carries a true Lorentz transformation, not a Euclidean copy.
-class HyperBatch {
+// Each instance carries a four-dimensional isometry of the covering space.
+class CurvedBatch {
   private readonly geometry = new THREE.InstancedBufferGeometry();
   private readonly object: THREE.Mesh | THREE.LineSegments;
   private readonly transforms = new THREE.InstancedInterleavedBuffer(
@@ -81,7 +100,7 @@ class HyperBatch {
   begin(): void {
     this.used = 0;
   }
-  append(matrix: H.Isometry, size: number | Vec3 = 1, ink = 1): void {
+  append(matrix: Hyper.Isometry, size: number | Vec3 = 1, ink = 1): void {
     if (this.used === this.matrices.count) {
       const m = new THREE.InstancedInterleavedBuffer(
         new Float32Array(this.matrices.array.length * 2),
@@ -125,10 +144,15 @@ function material(
   surface: boolean,
   horizon: number,
   planes: THREE.Plane[] = [],
+  spherical = false,
+  pov = false,
 ): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
+    defines: spherical && pov ? { SPHERICAL_POV: 1 } : {},
     uniforms: {
-      curvatureRadius: { value: H.CURVATURE_RADIUS },
+      curvatureRadius: { value: spherical ? Spherical.CURVATURE_RADIUS : Hyper.CURVATURE_RADIUS },
+      spherical: { value: spherical },
+      pov: { value: pov },
       horizon: { value: horizon },
       surface: { value: surface ? 1 : 0 },
     },
@@ -143,7 +167,7 @@ function material(
     polygonOffsetUnits: 1,
   });
 }
-function cellEdges(): THREE.BufferGeometry {
+function cellEdges(H: CurvedSpace): THREE.BufferGeometry {
   const positions: number[] = [];
   for (const edge of H.EDGES)
     for (const i of edge) {
@@ -157,22 +181,22 @@ function cellEdges(): THREE.BufferGeometry {
   );
 }
 
-export class HyperbolicScene {
+export class CurvedScene {
   readonly external = new THREE.Scene();
   readonly pov = new THREE.Scene();
-  private readonly edges = cellEdges();
+  private readonly edges: THREE.BufferGeometry;
   private readonly externalMaterial: THREE.ShaderMaterial;
   private readonly boundaryMaterial: THREE.ShaderMaterial;
   private readonly lineMaterial: THREE.ShaderMaterial;
   private readonly faceMaterial: THREE.ShaderMaterial;
-  private readonly externalBatches = new Map<string, HyperBatch>();
+  private readonly externalBatches = new Map<string, CurvedBatch>();
   private readonly povBatches = new Map<
     string,
-    { lines: HyperBatch; faces?: HyperBatch }
+    { lines: CurvedBatch; faces?: CurvedBatch }
   >();
-  private readonly exteriorCell: HyperBatch;
-  private readonly cells: HyperBatch;
-  private cover: H.Isometry[] = [];
+  private readonly exteriorCell: CurvedBatch;
+  private readonly cells: CurvedBatch;
+  private cover: Hyper.Isometry[] = [];
   private coverPosition: Vec3 | null = null;
   private readonly horizon: number;
 
@@ -181,10 +205,13 @@ export class HyperbolicScene {
     bullet: THREE.BufferGeometry,
     fragment: THREE.BufferGeometry,
     getAsteroid: (size: AsteroidSize) => AsteroidGeometry,
+    private readonly space: CurvedSpace = Hyper,
   ) {
+    const H = this.space, spherical = H === Spherical;
+    this.edges = cellEdges(H);
     // Keep more of the repeating structure visible; touch devices use a
     // smaller cover because hyperbolic cell counts grow exponentially.
-    this.horizon = matchMedia("(pointer:coarse)").matches ? 3.2 : 4.0;
+    this.horizon = spherical ? Math.PI : matchMedia("(pointer:coarse)").matches ? 3.2 : 4.0;
     const planes = H.FACE_NORMALS.map(
       (n) =>
         new THREE.Plane(
@@ -192,11 +219,11 @@ export class HyperbolicScene {
           H.FACE_OFFSET * H.CURVATURE_RADIUS,
         ),
     );
-    this.boundaryMaterial = material(false, 0);
-    this.externalMaterial = material(false, 0, planes);
-    this.lineMaterial = material(false, this.horizon);
-    this.faceMaterial = material(true, this.horizon);
-    this.exteriorCell = new HyperBatch(
+    this.boundaryMaterial = material(false, 0, [], spherical);
+    this.externalMaterial = material(false, 0, planes, spherical);
+    this.lineMaterial = material(false, this.horizon, [], spherical, true);
+    this.faceMaterial = material(true, this.horizon, [], spherical, true);
+    this.exteriorCell = new CurvedBatch(
       this.external,
       this.edges,
       this.boundaryMaterial,
@@ -204,7 +231,7 @@ export class HyperbolicScene {
     this.exteriorCell.begin();
     this.exteriorCell.append(H.IDENTITY, 1, 0.7);
     this.exteriorCell.finish();
-    this.cells = new HyperBatch(this.pov, this.edges, this.lineMaterial);
+    this.cells = new CurvedBatch(this.pov, this.edges, this.lineMaterial);
     const add = (
       key: string,
       edges: THREE.BufferGeometry,
@@ -212,12 +239,12 @@ export class HyperbolicScene {
     ) => {
       this.externalBatches.set(
         key,
-        new HyperBatch(this.external, edges, this.externalMaterial),
+        new CurvedBatch(this.external, edges, this.externalMaterial),
       );
       this.povBatches.set(key, {
-        lines: new HyperBatch(this.pov, edges, this.lineMaterial),
+        lines: new CurvedBatch(this.pov, edges, this.lineMaterial),
         faces: solid
-          ? new HyperBatch(this.pov, solid, this.faceMaterial, true)
+          ? new CurvedBatch(this.pov, solid, this.faceMaterial, true)
           : undefined,
       });
     };
@@ -231,6 +258,7 @@ export class HyperbolicScene {
   }
 
   update(state: GameState, camera: THREE.PerspectiveCamera, showDomainEdges = true): void {
+    const H = this.space;
     const observer = H.inverse(
       H.frame(state.ship.position, state.ship.orientation),
     );
@@ -248,7 +276,10 @@ export class HyperbolicScene {
     const viewTiles = this.cover.map((tile) => H.multiply(observer, tile));
     const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)),
       tanH = tanV * camera.aspect;
-    const visible = (p: H.HPoint, radius: number) => {
+    const visible = (p: Hyper.HPoint, radius: number) => {
+      // Spherical images beyond the equator are still in front of the eye;
+      // the finite 120-cell cover is small enough to submit without culling.
+      if (H === Spherical) return true;
       const d = Math.acosh(Math.max(1, p[3])),
         r = radius / H.CURVATURE_RADIUS;
       if (d - r > this.horizon) return false;

@@ -73,7 +73,7 @@ test('pointer displacement applies once and does not depend on simulation rate',
   assert.deepEqual(a.ship.orientation,b.ship.orientation);const orientation={...a.ship.orientation};stepGame(a,none,1/60);assert.deepEqual(a.ship.orientation,orientation);
 });
 
-for (const geometry of ['euclidean', 'hyperbolic'] as const) {
+for (const geometry of ['euclidean', 'hyperbolic', 'spherical'] as const) {
   test(`${geometry}: four hits advance the exact shape sequence before clearing the wave`, () => {
     const s = createInitialGameState(geometry);
     s.mode = 'playing'; s.ship.invulnerableUntil = 9999; s.nextEntityId = 100;
