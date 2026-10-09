@@ -1,200 +1,158 @@
 import * as THREE from 'three';
-import { GameState, WORLD_SIZE } from '../game/state';
+import { AsteroidSolid, GameState, WORLD_SIZE, getAsteroidSolid } from '../game/state';
 import { tileOffsets } from '../game/wrap';
 import { forwardFromQuat, upFromQuat } from '../utils/math';
-import { createAsteroidLineGeometry, createBulletLineGeometry, createCubeLineGeometry, createShipLineGeometry, createUnitFragmentGeometry } from './geometries';
-import { EntityViewRenderer } from './entityViews';
-import { HudRenderer } from './hud';
+import { createAsteroidLineGeometry, createAsteroidSolidGeometry, createBulletLineGeometry, createCubeLineGeometry, createShipLineGeometry, createUnitFragmentGeometry } from './geometries';
+import { AsteroidGeometry, EntityViewRenderer, LineBatch } from './entityViews';
+import { HudActions, HudRenderer } from './hud';
+import { Viewport, viewports } from './layout';
 
 export class SceneRenderer {
-  private readonly wrapper: HTMLDivElement;
-  private readonly hudCanvas: HTMLCanvasElement;
+  readonly wrapper = document.createElement('div');
+  readonly viewport = document.createElement('div');
   private readonly renderer: THREE.WebGLRenderer;
-  private readonly externalScene: THREE.Scene;
-  private readonly torusScene: THREE.Scene;
-  private readonly externalCamera: THREE.PerspectiveCamera;
-  private readonly shipCamera: THREE.PerspectiveCamera;
-  private readonly lineMaterial: THREE.LineBasicMaterial;
-  private readonly cubeGeometry: THREE.BufferGeometry;
+  private readonly externalScene = new THREE.Scene();
+  private readonly torusScene = new THREE.Scene();
+  private readonly externalCamera = new THREE.PerspectiveCamera(35, 1, 0.1, 5000);
+  private readonly shipCamera = new THREE.PerspectiveCamera(68, 1, 0.05, 1000);
+  private readonly lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, depthWrite: false });
+  private readonly externalMaterial: THREE.LineBasicMaterial;
+  private readonly faceMaterial = new THREE.MeshBasicMaterial({
+    color: 0x000000, side: THREE.DoubleSide, depthWrite: true,
+    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
+  });
+  private readonly cubeGeometry = createCubeLineGeometry(WORLD_SIZE);
+  private readonly shipGeometry = createShipLineGeometry();
+  private readonly bulletGeometry = createBulletLineGeometry();
+  private readonly fragmentGeometry = createUnitFragmentGeometry();
+  private readonly cubes: LineBatch[] = [];
   private readonly externalEntityViews: EntityViewRenderer;
   private readonly torusEntityViews: EntityViewRenderer;
   private readonly hud: HudRenderer;
-  private readonly asteroidGeometryCache = new Map<number, THREE.BufferGeometry>();
+  private readonly asteroidGeometryCache = new Map<AsteroidSolid, AsteroidGeometry>();
+  private readonly observer: ResizeObserver;
   private viewportWidth = 1;
   private viewportHeight = 1;
 
-  constructor(private readonly root: HTMLElement) {
-    this.wrapper = document.createElement('div');
-    this.wrapper.style.position = 'relative';
-    this.wrapper.style.width = '100%';
-    this.wrapper.style.height = '100%';
-    this.wrapper.style.background = '#000';
-    this.wrapper.style.overflow = 'hidden';
-    root.appendChild(this.wrapper);
-
-    const webglCanvas = document.createElement('canvas');
-    webglCanvas.style.position = 'absolute';
-    webglCanvas.style.inset = '0';
-    webglCanvas.style.width = '100%';
-    webglCanvas.style.height = '100%';
-    this.wrapper.appendChild(webglCanvas);
-
-    this.hudCanvas = document.createElement('canvas');
-    this.hudCanvas.style.position = 'absolute';
-    this.hudCanvas.style.inset = '0';
-    this.hudCanvas.style.pointerEvents = 'none';
-    this.wrapper.appendChild(this.hudCanvas);
-
-    this.renderer = new THREE.WebGLRenderer({ canvas: webglCanvas, antialias: true, alpha: false });
+  constructor(root: HTMLElement) {
+    this.wrapper.className = 'game'; this.viewport.className = 'playfield';
+    this.wrapper.append(this.viewport); root.append(this.wrapper);
+    const canvas = document.createElement('canvas');
+    canvas.setAttribute('aria-label', 'External cube and first-person torus views');
+    canvas.setAttribute('role', 'img');
+    this.viewport.append(canvas);
+    try {
+      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    } catch (error) {
+      this.wrapper.remove();
+      throw error;
+    }
     this.renderer.setClearColor(0x000000, 1);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.autoClear = false;
-
-    this.externalScene = new THREE.Scene();
-    this.torusScene = new THREE.Scene();
-    this.externalCamera = new THREE.PerspectiveCamera(35, 1, 0.1, 1200);
-    this.externalCamera.position.set(260, 180, 110);
-    this.externalCamera.lookAt(0, 0, 0);
-
-    this.shipCamera = new THREE.PerspectiveCamera(68, 1, 0.05, 1000);
-    this.shipCamera.position.set(0, 0, 0);
-    this.shipCamera.lookAt(0, 0, 1);
-
-    this.lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
-    this.cubeGeometry = createCubeLineGeometry(WORLD_SIZE);
-    this.addCubeInstances(this.externalScene, 0);
-    this.addCubeInstances(this.torusScene, 1);
-
-    const shipGeometry = createShipLineGeometry();
-    const bulletGeometry = createBulletLineGeometry();
-    const fragmentGeometry = createUnitFragmentGeometry();
-
-    this.externalEntityViews = new EntityViewRenderer(
-      this.externalScene,
-      this.lineMaterial,
-      shipGeometry,
-      bulletGeometry,
-      fragmentGeometry,
-      (seed) => this.getAsteroidGeometry(seed),
-      { mode: 'boundaryGhosts', cubeSize: WORLD_SIZE, tileRange: 1, includeCenterShip: true },
-    );
-
-    this.torusEntityViews = new EntityViewRenderer(
-      this.torusScene,
-      this.lineMaterial,
-      shipGeometry,
-      bulletGeometry,
-      fragmentGeometry,
-      (seed) => this.getAsteroidGeometry(seed),
-      { mode: 'toroidalGrid', cubeSize: WORLD_SIZE, tileRange: 1, includeCenterShip: false },
-    );
-
-    this.hud = new HudRenderer(this.hudCanvas);
+    this.renderer.localClippingEnabled = true;
+    const half = WORLD_SIZE / 2;
+    this.externalMaterial = this.lineMaterial.clone();
+    this.externalMaterial.clippingPlanes = [
+      new THREE.Plane(new THREE.Vector3(1, 0, 0), half), new THREE.Plane(new THREE.Vector3(-1, 0, 0), half),
+      new THREE.Plane(new THREE.Vector3(0, 1, 0), half), new THREE.Plane(new THREE.Vector3(0, -1, 0), half),
+      new THREE.Plane(new THREE.Vector3(0, 0, 1), half), new THREE.Plane(new THREE.Vector3(0, 0, -1), half),
+    ];
+    this.addCubes(this.externalScene, 0); this.addCubes(this.torusScene, 1);
+    this.externalEntityViews = new EntityViewRenderer(this.externalScene, this.externalMaterial,
+      this.shipGeometry, this.bulletGeometry, this.fragmentGeometry, seed => this.getAsteroidGeometry(seed), false);
+    this.torusEntityViews = new EntityViewRenderer(this.torusScene, this.lineMaterial,
+      this.shipGeometry, this.bulletGeometry, this.fragmentGeometry, seed => this.getAsteroidGeometry(seed), true, this.faceMaterial);
+    this.hud = new HudRenderer(this.wrapper, this.viewport);
+    this.observer = new ResizeObserver(() => this.resize());
+    this.observer.observe(this.viewport);
     this.resize();
   }
 
-  private getAsteroidGeometry(seed: number): THREE.BufferGeometry {
-    const cached = this.asteroidGeometryCache.get(seed);
-    if (cached) return cached;
-    const geometry = createAsteroidLineGeometry(seed);
-    this.asteroidGeometryCache.set(seed, geometry);
+  bindControls(actions: HudActions): void { this.hud.bind(actions); }
+
+  private getAsteroidGeometry(seed: number): AsteroidGeometry {
+    const solid = getAsteroidSolid(seed);
+    let geometry = this.asteroidGeometryCache.get(solid);
+    if (!geometry) {
+      geometry = { edges: createAsteroidLineGeometry(seed), solid: createAsteroidSolidGeometry(seed) };
+      this.asteroidGeometryCache.set(solid, geometry);
+    }
     return geometry;
   }
 
   resize(): void {
-    const rect = this.wrapper.getBoundingClientRect();
-    const width = Math.max(1, Math.floor(rect.width));
-    const height = Math.max(1, Math.floor(rect.height));
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.viewportWidth = width;
-    this.viewportHeight = height;
-
-    this.renderer.setPixelRatio(dpr);
+    const rect = this.viewport.getBoundingClientRect();
+    const width = Math.max(1, Math.floor(rect.width)), height = Math.max(1, Math.floor(rect.height));
+    this.viewportWidth = width; this.viewportHeight = height;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(width, height, false);
-    this.updateCameraAspects();
-    this.hud.resize(width, height, dpr);
+    const {external, pov} = viewports(width, height);
+    this.externalCamera.aspect = external.width / external.height;
+    // Fit the cube's bounding sphere to the narrower field of view.
+    const vertical = THREE.MathUtils.degToRad(this.externalCamera.fov / 2);
+    const horizontal = Math.atan(Math.tan(vertical) * this.externalCamera.aspect);
+    const distance = (Math.sqrt(3) * WORLD_SIZE / 2) / Math.sin(Math.min(vertical, horizontal)) * 1.06;
+    this.externalCamera.position.set(260, 180, 110).normalize().multiplyScalar(distance);
+    this.externalCamera.far = distance + WORLD_SIZE * 3;
+    this.externalCamera.lookAt(0, 0, 0); this.externalCamera.updateProjectionMatrix();
+    this.shipCamera.aspect = pov.width / pov.height; this.shipCamera.updateProjectionMatrix();
+    this.hud.resize(external, pov);
   }
 
   render(state: GameState): void {
-    this.updateShipCamera(state);
-    this.externalEntityViews.render(state);
-    this.torusEntityViews.render(state);
-
-    const leftWidth = Math.max(1, Math.floor(this.viewportWidth * 0.5));
-    const rightWidth = Math.max(1, this.viewportWidth - leftWidth);
-    const height = Math.max(1, this.viewportHeight);
-
+    const forward = forwardFromQuat(state.ship.orientation), up = upFromQuat(state.ship.orientation);
+    const eye = state.ship.position;
+    this.shipCamera.position.set(eye.x, eye.y, eye.z);
+    this.shipCamera.up.set(up.x, up.y, up.z);
+    this.shipCamera.lookAt(eye.x + forward.x, eye.y + forward.y, eye.z + forward.z);
+    this.externalEntityViews.render(state, this.externalCamera);
+    this.torusEntityViews.render(state, this.shipCamera);
+    const { external, pov } = viewports(this.viewportWidth, this.viewportHeight);
+    this.renderer.setScissorTest(false); this.renderer.clear(true, true, true);
     this.renderer.setScissorTest(true);
-    this.renderer.setViewport(0, 0, this.viewportWidth, this.viewportHeight);
-    this.renderer.setScissor(0, 0, this.viewportWidth, this.viewportHeight);
-    this.renderer.clear(true, true, true);
-
-    this.renderer.setViewport(0, 0, leftWidth, height);
-    this.renderer.setScissor(0, 0, leftWidth, height);
-    this.renderer.render(this.externalScene, this.externalCamera);
-
-    this.renderer.setViewport(leftWidth, 0, rightWidth, height);
-    this.renderer.setScissor(leftWidth, 0, rightWidth, height);
-    this.renderer.render(this.torusScene, this.shipCamera);
+    this.setViewport(external); this.renderer.render(this.externalScene, this.externalCamera);
+    this.setViewport(pov); this.renderer.render(this.torusScene, this.shipCamera);
     this.renderer.setScissorTest(false);
-
     this.hud.render(state);
   }
 
-  private updateCameraAspects(): void {
-    const leftWidth = Math.max(1, Math.floor(this.viewportWidth * 0.5));
-    const rightWidth = Math.max(1, this.viewportWidth - leftWidth);
-    const height = Math.max(1, this.viewportHeight);
-
-    this.externalCamera.aspect = leftWidth / height;
-    this.externalCamera.updateProjectionMatrix();
-    this.shipCamera.aspect = rightWidth / height;
-    this.shipCamera.updateProjectionMatrix();
+  private setViewport(rect: Viewport): void {
+    const y = this.viewportHeight - rect.y - rect.height;
+    this.renderer.setViewport(rect.x, y, rect.width, rect.height);
+    this.renderer.setScissor(rect.x, y, rect.width, rect.height);
   }
 
-  private updateShipCamera(state: GameState): void {
-    const forward = forwardFromQuat(state.ship.orientation);
-    const up = upFromQuat(state.ship.orientation);
-    // Anchor the POV camera at the ship's rotation origin so yaw/pitch feels like in-place head movement.
-    const eyeOffset = 0;
-    const eyeX = state.ship.position.x + forward.x * eyeOffset;
-    const eyeY = state.ship.position.y + forward.y * eyeOffset;
-    const eyeZ = state.ship.position.z + forward.z * eyeOffset;
-
-    this.shipCamera.position.set(eyeX, eyeY, eyeZ);
-    this.shipCamera.up.set(up.x, up.y, up.z);
-    this.shipCamera.lookAt(eyeX + forward.x * 50, eyeY + forward.y * 50, eyeZ + forward.z * 50);
-  }
-
-  private addCubeInstances(scene: THREE.Scene, tileRange: number): void {
-    const offsets = tileOffsets(tileRange, WORLD_SIZE, true);
-    for (const offset of offsets) {
-      const cube = new THREE.LineSegments(this.cubeGeometry, this.lineMaterial);
-      cube.frustumCulled = false;
-      cube.position.set(offset.x, offset.y, offset.z);
-      scene.add(cube);
+  private addCubes(scene: THREE.Scene, range: number): void {
+    const batch = new LineBatch(scene, this.lineMaterial);
+    const matrix = new THREE.Matrix4();
+    batch.begin();
+    for (const offset of tileOffsets(range, WORLD_SIZE)) {
+      batch.append(this.cubeGeometry, matrix.makeTranslation(offset.x, offset.y, offset.z));
     }
+    batch.finish(); this.cubes.push(batch);
   }
 
   async toggleFullscreen(): Promise<void> {
-    if (!document.fullscreenElement) {
-      await this.wrapper.requestFullscreen?.();
-    } else if (document.fullscreenElement === this.wrapper) {
-      await document.exitFullscreen();
+    try {
+      if (!document.fullscreenElement) {
+        if (!this.wrapper.requestFullscreen) throw new Error('Fullscreen unavailable');
+        await this.wrapper.requestFullscreen();
+      } else if (document.fullscreenElement === this.wrapper) await document.exitFullscreen();
+      this.resize();
+    } catch {
+      this.hud.notify('Fullscreen is unavailable in this browser or window.');
     }
-    this.resize();
   }
 
   destroy(): void {
-    this.externalEntityViews.dispose();
-    this.torusEntityViews.dispose();
-    for (const geometry of this.asteroidGeometryCache.values()) {
-      geometry.dispose();
-    }
+    this.observer.disconnect(); this.hud.destroy();
+    this.externalEntityViews.dispose(); this.torusEntityViews.dispose();
+    for (const geometry of this.asteroidGeometryCache.values()) { geometry.edges.dispose(); geometry.solid.dispose(); }
     this.asteroidGeometryCache.clear();
-    this.cubeGeometry.dispose();
-    this.lineMaterial.dispose();
-    this.renderer.dispose();
-    this.wrapper.remove();
+    for (const cube of this.cubes) cube.dispose();
+    for (const geometry of [this.cubeGeometry, this.shipGeometry, this.bulletGeometry, this.fragmentGeometry]) geometry.dispose();
+    this.lineMaterial.dispose(); this.externalMaterial.dispose(); this.faceMaterial.dispose();
+    this.renderer.dispose(); this.wrapper.remove();
   }
 }

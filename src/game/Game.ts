@@ -1,4 +1,5 @@
 import { AudioEngine } from '../audio/AudioEngine';
+import { PointerSteering } from '../input/pointer';
 import { KeyboardInput } from '../input/keyboard';
 import { SceneRenderer } from '../render/scene';
 import { forwardFromQuat } from '../utils/math';
@@ -18,6 +19,7 @@ export class Game {
   private readonly scene: SceneRenderer;
   private readonly audio = new AudioEngine();
   private readonly input: KeyboardInput;
+  private readonly pointer: PointerSteering;
   private rafId = 0;
   private lastFrameTime = 0;
   private accumulator = 0;
@@ -27,7 +29,15 @@ export class Game {
   constructor(private readonly root: HTMLElement) {
     this.scene = new SceneRenderer(root);
     this.state = seedTitleScene(createInitialGameState());
-    this.input = new KeyboardInput(window, () => this.audio.unlock());
+    this.input = new KeyboardInput(window, () => this.audio.unlock(), () => { void this.scene.toggleFullscreen(); });
+    this.pointer = new PointerSteering(this.scene.viewport, () => this.state.mode === 'playing' && this.state.ship.alive);
+    this.scene.bindControls({
+      press: code => this.input.press(code), hold: (code, id) => this.input.hold(code, id),
+      release: id => this.input.release(id), fullscreen: () => { void this.scene.toggleFullscreen(); },
+      mute: () => this.audio.toggleMute(),
+    });
+    window.addEventListener('blur', this.pauseForFocusLoss);
+    document.addEventListener('visibilitychange', this.handleVisibility);
 
     window.addEventListener('resize', this.handleResize);
     document.addEventListener('fullscreenchange', this.handleResize);
@@ -38,7 +48,21 @@ export class Game {
     this.rafId = window.requestAnimationFrame(this.frame);
   }
 
+  private readonly pauseForFocusLoss = () => {
+    if (this.state.mode === 'playing' || this.state.mode === 'respawning') this.state.mode = 'paused';
+    this.input.clear(); this.pointer.reset();
+    this.accumulator = 0; this.lastFrameTime = 0;
+    this.audio.suspend();
+    this.render();
+  };
+
+  private readonly handleVisibility = () => {
+    if (document.hidden) this.pauseForFocusLoss();
+    this.accumulator = 0; this.lastFrameTime = 0;
+  };
+
   private readonly handleResize = () => {
+    this.pointer.reset();
     this.scene.resize();
     this.render();
   };
@@ -68,7 +92,7 @@ export class Game {
   };
 
   private stepFixed(dt: number): void {
-    const input = this.input.consumeStepInput();
+    const input = { ...this.input.consumeStepInput(), ...this.pointer.consume() };
     const result = stepGame(this.state, input, dt);
     this.state = result.state;
     this.applyEvents(result.events, input);
@@ -99,6 +123,7 @@ export class Game {
       this.state.mode === 'playing' &&
       this.state.ship.alive;
 
+    if (events.toggledPause) this.pointer.reset();
     if (this.state.mode === 'paused' || this.state.mode === 'title' || this.state.mode === 'gameOver') {
       this.audio.stopGameplayLoops();
     } else {
@@ -196,9 +221,13 @@ export class Game {
     window.cancelAnimationFrame(this.rafId);
     window.removeEventListener('resize', this.handleResize);
     document.removeEventListener('fullscreenchange', this.handleResize);
-    this.input.destroy();
-    this.scene.destroy();
-    this.audio.stopGameplayLoops();
+    window.removeEventListener('blur', this.pauseForFocusLoss);
+    document.removeEventListener('visibilitychange', this.handleVisibility);
+    this.input.destroy(); this.pointer.destroy();
+    this.scene.destroy(); this.audio.destroy();
+    Reflect.deleteProperty(window, 'render_game_to_text');
+    Reflect.deleteProperty(window, 'advanceTime');
+    Reflect.deleteProperty(window, '__gameDebug');
   }
 }
 

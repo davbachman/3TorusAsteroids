@@ -8,7 +8,7 @@ export class AudioEngine {
   private thrustGain: GainNode | null = null;
   private thrustOsc: OscillatorNode | null = null;
   private thrustNoiseSource: AudioBufferSourceNode | null = null;
-  private thrustEnabled = false;
+  private muted = false;
   private nextBeatAt = 0;
   private beatHigh = false;
 
@@ -19,12 +19,12 @@ export class AudioEngine {
       if (!Ctx) return;
       this.ctx = new Ctx();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.2;
+      this.master.gain.value = this.muted ? 0 : 0.2;
       this.master.connect(this.ctx.destination);
       this.noiseBuffer = createNoiseBuffer(this.ctx, 1.2);
       this.initThrustLoop();
     }
-    void this.ctx.resume();
+    if (this.ctx.state === 'suspended') void this.ctx.resume().catch(() => {});
   }
 
   private initThrustLoop(): void {
@@ -63,7 +63,6 @@ export class AudioEngine {
   }
 
   setThrust(active: boolean): void {
-    this.thrustEnabled = active;
     if (!this.ctx || !this.thrustGain) return;
     const t = this.ctx.currentTime;
     const target = active ? 0.09 : 0.0001;
@@ -184,6 +183,27 @@ export class AudioEngine {
       });
       this.nextBeatAt = now + interval;
     }
+  }
+
+  toggleMute(): boolean {
+    this.muted = !this.muted;
+    if (this.ctx && this.master) this.master.gain.setValueAtTime(this.muted ? 0 : 0.2, this.ctx.currentTime);
+    return this.muted;
+  }
+
+  suspend(): void {
+    this.stopGameplayLoops();
+    if (this.ctx?.state === 'running') void this.ctx.suspend().catch(() => {});
+  }
+
+  destroy(): void {
+    this.stopGameplayLoops();
+    this.thrustOsc?.stop(); this.thrustOsc?.disconnect();
+    this.thrustNoiseSource?.stop(); this.thrustNoiseSource?.disconnect();
+    this.thrustGain?.disconnect(); this.master?.disconnect();
+    if (this.ctx) void this.ctx.close().catch(() => {});
+    this.ctx = null; this.master = null; this.noiseBuffer = null;
+    this.thrustGain = null; this.thrustOsc = null; this.thrustNoiseSource = null;
   }
 
   stopGameplayLoops(): void {

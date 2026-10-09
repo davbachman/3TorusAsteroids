@@ -75,6 +75,9 @@ export interface GameState {
 }
 
 export interface InputState {
+  /** Pointer displacement, in radians, consumed once per simulation step. */
+  lookYaw?: number;
+  lookPitch?: number;
   left: boolean;
   right: boolean;
   up: boolean;

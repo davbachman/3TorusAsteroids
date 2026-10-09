@@ -19,3 +19,12 @@ Original prompt: Implement a browser-based 3D Asteroids game inside a wireframe 
 - Tuned gameplay feel: halved arrow-key rotation rates, added light coasting drag when not thrusting, and expanded asteroid bullet-hit padding to make shots more forgiving.
 - Reframed the left external camera to an asymmetric, farther position so the front/rear vertical edges no longer overlap in projection and the entire cube fits inside the left pane.
 - Asteroid radius is now derived from Platonic-solid face count as well as tier size, so tetrahedra render/collide smaller than cubes/octahedra, which are smaller than dodecahedra, which are smaller than icosahedra.
+
+
+## Audit fixes and rendering update
+
+- Added radius-aware safe wave placement, a checked fallback, swept toroidal collisions, nearest bullet hits, and partial-frame bullet expiry.
+- Added clipped external rendering, opaque black POV faces with white outlines, shared solid geometries, culled/batched lines, and instanced faces.
+- Added pointer-over-POV steering, touch controls, responsive viewports, accessible HTML menus/status, mute, focus-loss pause, and resource cleanup.
+- Fixed production preview paths, enabled strict TypeScript, updated tooling, and added unit/browser checks to pull requests and deployment.
+- Verified normal-speed shots near visible faces, edges, and corners of every large Platonic solid, including rotated shapes.

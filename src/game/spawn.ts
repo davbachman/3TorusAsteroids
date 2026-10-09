@@ -1,6 +1,6 @@
-import { AsteroidSize, AsteroidState, WORLD_HALF, WORLD_SIZE, getAsteroidRadius } from './state';
+import { AsteroidSize, AsteroidState, SHIP_RADIUS, WORLD_HALF, WORLD_SIZE, getAsteroidRadius } from './state';
 import { Quat, Vec3, quatIdentity, v3 } from '../utils/math';
-import { toroidalDistance } from './wrap';
+import { toroidalDistance, wrapPosition } from './wrap';
 import { randomSeed } from '../utils/random';
 
 const SIZE_ORDER: AsteroidSize[] = ['large', 'medium', 'small'];
@@ -48,7 +48,7 @@ export function makeAsteroid(params: {
   return {
     id,
     size,
-    position: { ...position },
+    position: wrapPosition(position, WORLD_SIZE),
     velocity: params.velocity ? { ...params.velocity } : randomVelocityForSize(size),
     angularVelocity: params.angularVelocity ? { ...params.angularVelocity } : randomAngularVelocity(),
     rotation: params.rotation ? { ...params.rotation } : quatIdentity(),
@@ -69,27 +69,30 @@ export function spawnLevelWave(level: number, shipPosition: Vec3, nextEntityId: 
   const asteroids: AsteroidState[] = [];
   let id = nextEntityId;
   let attempts = 0;
+  const isSafe = (position: Vec3, radius: number) =>
+    toroidalDistance(position, shipPosition, WORLD_SIZE) >= radius + SHIP_RADIUS + 8 &&
+    asteroids.every((a) => toroidalDistance(position, a.position, WORLD_SIZE) >= a.radius + radius + 4);
 
   while (asteroids.length < largeCount && attempts < largeCount * 100) {
     attempts += 1;
     const position = randomSpawnPosition();
     const candidateSeed = randomSeed();
-    if (toroidalDistance(position, shipPosition, WORLD_SIZE) < 20) continue;
     const candidateRadius = getAsteroidRadius('large', candidateSeed);
-    if (asteroids.some((a) => toroidalDistance(position, a.position, WORLD_SIZE) < a.radius + candidateRadius + 4)) {
-      continue;
-    }
+    if (!isSafe(position, candidateRadius)) continue;
     asteroids.push(makeAsteroid({ id: id++, size: 'large', position, seed: candidateSeed }));
   }
 
-  while (asteroids.length < largeCount) {
-    asteroids.push(
-      makeAsteroid({
-        id: id++,
-        size: 'large',
-        position: randomSpawnPosition(),
-      }),
-    );
+  // Bounded fallback: try smaller solids on a grid rather than dropping the
+  // safety checks when random placement runs out of room.
+  for (let x = -40; x <= 40 && asteroids.length < largeCount; x += 20) {
+    for (let y = -40; y <= 40 && asteroids.length < largeCount; y += 20) {
+      for (let z = -40; z <= 40 && asteroids.length < largeCount; z += 20) {
+        const position = v3(x, y, z);
+        if (isSafe(position, getAsteroidRadius('large', 0))) {
+          asteroids.push(makeAsteroid({ id: id++, size: 'large', seed: 0, position }));
+        }
+      }
+    }
   }
 
   return { asteroids, nextEntityId: id };

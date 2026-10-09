@@ -51,7 +51,7 @@ export function createUnitFragmentGeometry(): THREE.BufferGeometry {
   return lineSegmentsFromPairs([[0, 0, 0, 1, 0, 0]]);
 }
 
-function createBaseAsteroidPolyhedron(seed: number): THREE.BufferGeometry {
+export function createAsteroidSolidGeometry(seed: number): THREE.BufferGeometry {
   switch (getAsteroidSolid(seed)) {
     case 'tetrahedron':
       return new THREE.TetrahedronGeometry(1);
@@ -68,7 +68,7 @@ function createBaseAsteroidPolyhedron(seed: number): THREE.BufferGeometry {
 }
 
 export function createAsteroidLineGeometry(seed: number): THREE.BufferGeometry {
-  const base = createBaseAsteroidPolyhedron(seed);
+  const base = createAsteroidSolidGeometry(seed);
   const edges = new THREE.EdgesGeometry(base);
   base.dispose();
   return edges;
