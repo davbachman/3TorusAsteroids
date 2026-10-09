@@ -17,7 +17,7 @@ To learn more about David Bachman and his work visit https://pzacad.pitzer.edu/~
 
 ## How to Play
 
-Every asteroid starts as an icosahedron. Successive hits change it into a dodecahedron, then an octahedron, then a tetrahedron; the fourth hit destroys it. Each hit shrinks the same asteroid without changing its trajectory. This progression applies in all three geometries.
+Asteroids are irregular, jagged 3D rocks with opaque black faces and white outlines in the POV view. A large rock splits into two medium rocks; each medium rock splits into two small rocks. Small rocks break into debris. Pieces inherit the parent’s motion and spin, then fly apart. This classic three-size progression applies in all three geometries, including splits across paired faces. Large, medium, and small rocks award 20, 50, and 100 points respectively.
 
 - Trackpad or mouse: move the pointer inside the POV view to turn and look. No click is needed; leaving and re-entering the view does not jump the camera.
 - Touch: hold the direction buttons and Thrust, and tap Fire. Multiple fingers can steer and thrust together.
@@ -56,7 +56,7 @@ npm run test:browser
 
 Bullets register hits across the full asteroid, including near visible edges and corners. A small aiming allowance keeps grazing shots forgiving, while swept collision checks prevent fast shots from skipping through a target.
 
-Geometry and metric operations live in `src/geometry`, game logic in `src/game`, controls in `src/input`, rendering and the accessible HUD in `src/render`, and procedural sound in `src/audio`. The renderer shares four asteroid geometry pairs, batches outlines and fragments, and instances opaque faces. Collision checks sweep the full path through the toroidal world, including moving targets and bullet expiry.
+Geometry and metric operations live in `src/geometry`, game logic in `src/game`, controls in `src/input`, rendering and the accessible HUD in `src/render`, and procedural sound in `src/audio`. The renderer shares six irregular rock geometry pairs, batches outlines and fragments, and instances opaque faces. Collision checks sweep the full path through the toroidal world, including moving targets and bullet expiry.
 
 ## Hyperbolic geometry
 
@@ -82,4 +82,4 @@ Positions use a gnomonic chart of the central domain; movement follows great cir
 
 The POV transforms the entire 120-cell cover into the observer's orthonormal frame and projects light directions onto the screen. It includes both hemispheres of the covering sphere, up to geodesic distance π times the curvature radius. Per-fragment angular depth makes nearer opaque surfaces occlude farther images. Positive curvature makes objects shrink toward the equator and grow again toward the antipodal focusing point. The renderer uses the shortest paths in the covering sphere; additional light circuits beyond the antipode are not drawn. There is no distance fade in this mode. Bullet lifetime remains the same as in the other modes.
 
-Tests verify group closure, face pairings, edge/vertex incidence, closed great circles, parallel transport, safe spawns, collision sweeps, the full asteroid progression, opaque occlusion, and continuity across paired faces. The POV edge toggle and keyboard, pointer, and touch controls apply to all three geometries.
+Tests verify group closure, face pairings, edge/vertex incidence, closed great circles, parallel transport, safe spawns, collision sweeps, the full rock-splitting progression, opaque occlusion, and continuity across paired faces. The POV edge toggle and keyboard, pointer, and touch controls apply to all three geometries.

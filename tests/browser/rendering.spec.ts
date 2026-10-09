@@ -6,7 +6,7 @@ test('POV faces hide rear edges and objects; clipping removes exterior geometry;
   const result=await page.evaluate(async()=>{
     const scenePath='/src/render/scene.ts',statePath='/src/game/state.ts',spawnPath='/src/game/spawn.ts';
     const {SceneRenderer}=await import(scenePath);
-    const {createInitialGameState,ASTEROID_STAGES}=await import(statePath);
+    const {createInitialGameState,ROCK_VARIANTS}=await import(statePath);
     const {makeAsteroid}=await import(spawnPath);
     const root=document.createElement('div');root.style.cssText='position:fixed;inset:0';document.body.append(root);
     const scene=new SceneRenderer(root);
@@ -41,7 +41,7 @@ test('POV faces hide rear edges and objects; clipping removes exterior geometry;
     const clipped=capture();scene.externalMaterial.clippingPlanes=[];
     const unclipped=capture();let differentExternalPixels=0;
     for(let y=0;y<height;y++)for(let x=0;x<width/2;x++){const i=(y*width+x)*4;if(Math.abs(clipped[i]-unclipped[i])>60)differentExternalPixels++;}
-    for(let i=0;i<500;i++)scene.getAsteroidGeometry(ASTEROID_STAGES[i%ASTEROID_STAGES.length]);
+    for(let i=0;i<500;i++)scene.getAsteroidGeometry(ROCK_VARIANTS[i%ROCK_VARIANTS.length]);
     const cachedShapes=scene.asteroidGeometryCache.size;
     s.fragments=Array.from({length:56},(_,i)=>({id:10+i,position:{x:0,y:0,z:20},velocity:{x:1,y:1,z:1},ttl:1,length:2}));
     scene.renderer.info.autoReset=false;scene.renderer.info.reset();capture();
@@ -53,7 +53,7 @@ test('POV faces hide rear edges and objects; clipping removes exterior geometry;
   expect(result.visibleCenter).toBeGreaterThan(result.frontCenter);
   expect(result.wire).toBeGreaterThan(result.opaque);
   expect(result.differentExternalPixels).toBeGreaterThan(20);
-  expect(result.cachedShapes).toBe(4);
+  expect(result.cachedShapes).toBe(6);
   expect(result.drawCalls).toBeLessThanOrEqual(9);
 });
 

@@ -195,7 +195,11 @@ test('spherical perspective sees beyond the equator and grows toward the antipod
     // Isolate one lifted image to test perspective, independently of occlusion
     // by the other 119 images of the same asteroid.
     for (const angle of [0.4, Math.PI/2, Math.PI-0.4]) {
-      scene.spherical.cover=[S.boost({x:0,y:0,z:angle*S.CURVATURE_RADIUS})];
+      let transform=S.boost({x:0,y:0,z:angle*S.CURVATURE_RADIUS});
+      // Match the near-side silhouette (up to vertical reflection) when viewing
+      // an asymmetric rock from the opposite side of the sphere.
+      if(angle>Math.PI/2) transform=S.multiply(transform,S.rotation({x:1,y:0,z:0,w:0}));
+      scene.spherical.cover=[transform];
       scene.render(s);
       const pixels=new Uint8Array(width*height*4);
       gl.readPixels(0,0,width,height,gl.RGBA,gl.UNSIGNED_BYTE,pixels);

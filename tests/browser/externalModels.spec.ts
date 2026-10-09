@@ -38,7 +38,7 @@ for (const geometry of ['hyperbolic','spherical'] as const) {
       curved.exteriorCell.geometry.setDrawRange(0,Infinity);
       const n=G.FACE_NORMALS[0],scale=G.FACE_OFFSET*G.CURVATURE_RADIUS-.2;
       s.asteroids=[makeAsteroid({geometry,id:1,size:'large',position:{x:n.x*scale,y:n.y*scale,z:n.z*scale},velocity:{x:0,y:0,z:0}})];
-      const clipped=capture();const copies=curved.externalBatches.get('icosahedron').geometry.instanceCount;
+      const clipped=capture();const copies=curved.externalBatches.get(`rock-${s.asteroids[0].variant}`).geometry.instanceCount;
       curved.externalMaterial.uniforms.clipDomain.value=false;const unclipped=capture();
       let clippingChanges=0;
       for(let y=0;y<height;y++)for(let x=0;x<width/2;x++) {

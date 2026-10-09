@@ -1,7 +1,7 @@
 import { GeometryId } from '../geometry/types';
-import { canonicalPosition, insideDomain, overlap } from '../geometry/world';
-import { ASTEROID_STAGES, AsteroidSize, AsteroidState, SHIP_RADIUS, WORLD_HALF, getAsteroidRadius } from './state';
-import { Quat, Vec3, quatIdentity, v3 } from '../utils/math';
+import { canonicalPosition, insideDomain, moveBody, overlap } from '../geometry/world';
+import { ASTEROID_STAGES, ROCK_VARIANTS, AsteroidSize, AsteroidState, SHIP_RADIUS, WORLD_HALF, getAsteroidRadius } from './state';
+import { Quat, Vec3, addScaledVec3, quatIdentity, quatRotateVec3, scaleVec3, v3 } from '../utils/math';
 
 
 function rand(min: number, max: number): number {
@@ -37,6 +37,7 @@ export function makeAsteroid(params: {
   geometry?: GeometryId;
   id: number;
   size: AsteroidSize;
+  variant?: number;
   position: Vec3;
   velocity?: Vec3;
   angularVelocity?: Vec3;
@@ -46,6 +47,7 @@ export function makeAsteroid(params: {
   return {
     id,
     size,
+    variant: params.variant ?? id % ROCK_VARIANTS.length,
     position: canonicalPosition(params.geometry ?? 'euclidean', position),
     velocity: params.velocity ? { ...params.velocity } : randomVelocityForSize(size),
     angularVelocity: params.angularVelocity ? { ...params.angularVelocity } : randomAngularVelocity(),
@@ -94,9 +96,22 @@ export function spawnLevelWave(level: number, shipPosition: Vec3, nextEntityId: 
   return { asteroids, nextEntityId: id };
 }
 
-export function advanceAsteroid(parent: AsteroidState): AsteroidState | null {
-  const index = ASTEROID_STAGES.indexOf(parent.size);
-  const nextSize = ASTEROID_STAGES[index + 1];
-  if (index < 0 || !nextSize) return null;
-  return { ...parent, size: nextSize, radius: getAsteroidRadius(nextSize) };
+export function splitAsteroid(parent: AsteroidState, firstId: number, geometry: GeometryId = 'euclidean'): AsteroidState[] {
+  const nextSize = ASTEROID_STAGES[ASTEROID_STAGES.indexOf(parent.size) + 1];
+  if (!nextSize) return [];
+  const radius = getAsteroidRadius(nextSize);
+  const direction = randomVelocityForSize(nextSize);
+  const axis = scaleVec3(direction, 1 / Math.hypot(direction.x, direction.y, direction.z));
+  const kick = nextSize === 'medium' ? 5 : 8;
+  return [-1, 1].map((side, index) => {
+    // Separation follows the world's geodesics, including through paired faces.
+    // Carry the parent's velocity and spin into each child's new local frame.
+    const moved = moveBody(geometry, parent.position, scaleVec3(axis, side * radius * 1.05), 1, parent.rotation);
+    return makeAsteroid({
+      geometry, id: firstId + index, size: nextSize, position: moved.position,
+      velocity: quatRotateVec3(moved.turn, addScaledVec3(parent.velocity, axis, side * kick)),
+      rotation: moved.orientation!,
+      angularVelocity: quatRotateVec3(moved.turn, addScaledVec3(parent.angularVelocity, randomAngularVelocity(), .6)),
+    });
+  });
 }

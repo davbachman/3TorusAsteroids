@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ASTEROID_STAGES, AsteroidSize, GameState, AsteroidSolid, WORLD_SIZE, getAsteroidSolid } from '../game/state';
+import { ROCK_VARIANTS, GameState, WORLD_SIZE } from '../game/state';
 import { ghostOffsets, tileOffsets } from '../game/wrap';
 import { Quat, Vec3 } from '../utils/math';
 
@@ -86,7 +86,7 @@ class SolidBatch {
 
 export class EntityViewRenderer {
   private readonly lines: LineBatch;
-  private readonly solids = new Map<AsteroidSolid, SolidBatch>();
+  private readonly solids = new Map<number, SolidBatch>();
   private readonly offsets = tileOffsets(1, WORLD_SIZE);
   private readonly frustum = new THREE.Frustum();
   private readonly sphere = new THREE.Sphere();
@@ -104,14 +104,14 @@ export class EntityViewRenderer {
     private readonly shipGeometry: THREE.BufferGeometry,
     private readonly bulletGeometry: THREE.BufferGeometry,
     private readonly fragmentGeometry: THREE.BufferGeometry,
-    private readonly getAsteroidGeometry: (size: AsteroidSize) => AsteroidGeometry,
+    private readonly getAsteroidGeometry: (variant: number) => AsteroidGeometry,
     private readonly toroidal: boolean,
     faceMaterial?: THREE.MeshBasicMaterial,
   ) {
     this.lines = new LineBatch(scene, material);
     if (faceMaterial) {
-      for (const size of ASTEROID_STAGES) {
-        this.solids.set(getAsteroidSolid(size), new SolidBatch(scene, getAsteroidGeometry(size).solid, faceMaterial));
+      for (const variant of ROCK_VARIANTS) {
+        this.solids.set(variant, new SolidBatch(scene, getAsteroidGeometry(variant).solid, faceMaterial));
       }
     }
   }
@@ -142,8 +142,8 @@ export class EntityViewRenderer {
       (state.time >= state.ship.invulnerableUntil || Math.floor(state.time * 10) % 2 === 0);
     if (showShip) this.emit(this.shipGeometry, state.ship.position, 4, state.ship.orientation, 1, undefined, this.toroidal);
     for (const asteroid of state.asteroids) {
-      this.emit(this.getAsteroidGeometry(asteroid.size).edges, asteroid.position, asteroid.radius,
-        asteroid.rotation, asteroid.radius, this.solids.get(getAsteroidSolid(asteroid.size)));
+      this.emit(this.getAsteroidGeometry(asteroid.variant).edges, asteroid.position, asteroid.radius,
+        asteroid.rotation, asteroid.radius, this.solids.get(asteroid.variant));
     }
     for (const bullet of state.bullets) this.emit(this.bulletGeometry, bullet.position, 1);
     for (const fragment of state.fragments) {

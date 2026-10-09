@@ -18,9 +18,10 @@ export const RESPAWN_INVULN = 2.0;
 export const EXTRA_LIFE_SCORE_STEP = 10000;
 export const ASTEROID_BULLET_HIT_PADDING = 1.75;
 
-export type AsteroidSize = 'large' | 'medium' | 'small' | 'tiny';
+export type AsteroidSize = 'large' | 'medium' | 'small';
 export type GameMode = 'title' | 'playing' | 'paused' | 'respawning' | 'gameOver';
-export type AsteroidSolid = 'tetrahedron' | 'octahedron' | 'dodecahedron' | 'icosahedron';
+// A fixed collection keeps rendering batches bounded as rocks split.
+export const ROCK_VARIANTS = [0, 1, 2, 3, 4, 5] as const;
 
 export interface ShipState {
   position: Vec3;
@@ -34,6 +35,7 @@ export interface ShipState {
 export interface AsteroidState {
   id: number;
   size: AsteroidSize;
+  variant: number;
   position: Vec3;
   velocity: Vec3;
   angularVelocity: Vec3;
@@ -90,32 +92,19 @@ export interface InputState {
   fullscreenPressed: boolean;
 }
 
-export const ASTEROID_STAGES: readonly AsteroidSize[] = ['large', 'medium', 'small', 'tiny'];
+export const ASTEROID_STAGES: readonly AsteroidSize[] = ['large', 'medium', 'small'];
 
 export const ASTEROID_BASE_RADII: Record<AsteroidSize, number> = {
   large: 8,
-  medium: 5,
-  small: 3,
-  tiny: 1.5,
+  medium: 4.5,
+  small: 2.25,
 };
 
 export const ASTEROID_SCORE: Record<AsteroidSize, number> = {
   large: 20,
   medium: 50,
-  small: 75,
-  tiny: 100,
+  small: 100,
 };
-
-const ASTEROID_SOLIDS: Record<AsteroidSize, AsteroidSolid> = {
-  large: 'icosahedron',
-  medium: 'dodecahedron',
-  small: 'octahedron',
-  tiny: 'tetrahedron',
-};
-
-export function getAsteroidSolid(size: AsteroidSize): AsteroidSolid {
-  return ASTEROID_SOLIDS[size];
-}
 
 export function getAsteroidRadius(size: AsteroidSize): number {
   return ASTEROID_BASE_RADII[size];

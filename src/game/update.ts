@@ -19,7 +19,7 @@ import {
   FragmentState,
   createShipState,
 } from './state';
-import { makeAsteroid, spawnLevelWave, advanceAsteroid } from './spawn';
+import { makeAsteroid, spawnLevelWave, splitAsteroid } from './spawn';
 import {
   addScaledVec3,
   applyWorldAxisRotation,
@@ -292,8 +292,9 @@ function resolveBulletAsteroidHits(
       asteroid.velocity,
     );
 
-    const nextStage = advanceAsteroid(asteroid);
-    if (nextStage) nextAsteroids.push(nextStage);
+    const pieces = splitAsteroid(asteroid, state.nextEntityId, state.geometry);
+    state.nextEntityId += pieces.length;
+    nextAsteroids.push(...pieces);
   }
 
   state.asteroids = nextAsteroids;

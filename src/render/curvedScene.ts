@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import * as Hyper from "../geometry/hyperbolic";
 import * as Spherical from "../geometry/spherical";
-import { ASTEROID_STAGES, AsteroidSize, GameState, getAsteroidSolid } from "../game/state";
+import { ROCK_VARIANTS, GameState } from "../game/state";
 import { Quat, Vec3, lengthVec3, quatIdentity, v3 } from "../utils/math";
 import { AsteroidGeometry } from "./entityViews";
 import { HyperbolicModel, subdivideGeodesicEdges } from "./externalModel";
@@ -233,7 +233,7 @@ export class CurvedScene {
     ship: THREE.BufferGeometry,
     bullet: THREE.BufferGeometry,
     fragment: THREE.BufferGeometry,
-    getAsteroid: (size: AsteroidSize) => AsteroidGeometry,
+    getAsteroid: (variant: number) => AsteroidGeometry,
     private readonly space: CurvedSpace = Hyper,
   ) {
     const H = this.space, spherical = H === Spherical;
@@ -281,9 +281,9 @@ export class CurvedScene {
     add("ship", ship);
     add("bullet", bullet);
     add("fragment", fragment);
-    for (const size of ASTEROID_STAGES) {
-      const g = getAsteroid(size);
-      add(getAsteroidSolid(size), g.edges, g.solid);
+    for (const variant of ROCK_VARIANTS) {
+      const g = getAsteroid(variant);
+      add(`rock-${variant}`, g.edges, g.solid);
     }
   }
 
@@ -373,7 +373,7 @@ export class CurvedScene {
       emit("ship", state.ship.position, 4, state.ship.orientation, 1, true);
     for (const asteroid of state.asteroids)
       emit(
-        getAsteroidSolid(asteroid.size),
+        `rock-${asteroid.variant}`,
         asteroid.position,
         asteroid.radius,
         asteroid.rotation,

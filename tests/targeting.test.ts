@@ -2,16 +2,16 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {createAsteroidSolidGeometry} from '../src/render/geometries';
-import {ASTEROID_SCORE, ASTEROID_STAGES, createInitialGameState, getAsteroidRadius, getAsteroidSolid, InputState} from '../src/game/state';
+import {ASTEROID_SCORE, ASTEROID_STAGES, ROCK_VARIANTS, createInitialGameState, getAsteroidRadius, InputState} from '../src/game/state';
 import {makeAsteroid} from '../src/game/spawn';
 import {stepGame} from '../src/game/update';
 import {v3} from '../src/utils/math';
 
 const none:InputState={left:false,right:false,up:false,down:false,thrust:false,firePressed:false,startPressed:false,pausePressed:false,fullscreenPressed:false};
 
-for(const size of ASTEROID_STAGES) {
-  test(`${getAsteroidSolid(size)}: visible face, edge, and corner hits work at normal bullet speed`,()=>{
-    const geometry=createAsteroidSolidGeometry(size);
+for(const size of ASTEROID_STAGES) for(const variant of ROCK_VARIANTS) {
+  test(`${size} rock ${variant}: visible face, edge, and corner hits work at normal bullet speed`,()=>{
+    const geometry=createAsteroidSolidGeometry(variant);
     const material=new THREE.MeshBasicMaterial({side:THREE.DoubleSide});
     const mesh=new THREE.Mesh(geometry,material);
     const radius=getAsteroidRadius(size);
@@ -34,7 +34,7 @@ for(const size of ASTEROID_STAGES) {
           const ray=new THREE.Raycaster(origin,new THREE.Vector3(0,0,1));
           assert.ok(ray.intersectObject(mesh).length>0,'target must intersect a visible polygon');
           const state=createInitialGameState();state.mode='playing';state.ship.position=v3(40,40,40);
-          state.asteroids=[makeAsteroid({id:1,size,position:v3(),velocity:v3(),angularVelocity:v3(),rotation:mesh.quaternion})];
+          state.asteroids=[makeAsteroid({id:1,size,variant,position:v3(),velocity:v3(),angularVelocity:v3(),rotation:mesh.quaternion})];
           state.bullets=[{id:2,position:{x:origin.x,y:origin.y,z:origin.z},velocity:v3(0,0,60),ttl:1}];state.nextEntityId=3;
           for(let frame=0;frame<60&&state.score===0;frame++)stepGame(state,none,1/60);
           assert.equal(state.score,ASTEROID_SCORE[size],`missed visible edge at ${point.x}, ${point.y}`);

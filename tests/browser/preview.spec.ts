@@ -71,25 +71,23 @@ test.describe('real-time startup', () => {
 });
 
 for (const geometry of ['euclidean', 'hyperbolic', 'spherical'] as const) {
-  test(`${geometry} renders every asteroid damage stage in the production bundle`, async ({page}) => {
-    const errors:string[]=[];
-    page.on('pageerror', error => errors.push(error.message));
-    await load(page);
-    await page.locator(`input[value="${geometry}"]`).check();
-    await start(page);
-    const shapes = () => page.evaluate(() => JSON.parse(window.render_game_to_text()).asteroids.map((a:{shape:string}) => a.shape));
-    expect(await shapes()).toEqual(Array(4).fill('icosahedron'));
-    await page.evaluate(() => window.__gameDebug.forceAsteroid());
-    for (const next of ['dodecahedron', 'octahedron', 'tetrahedron', null]) {
-      await page.evaluate(() => {
-        const s = window.__gameDebug.getState();
-        s.asteroids[0].velocity = {x:0,y:0,z:0};
-        s.bullets = [{id:s.nextEntityId++, position:{...s.asteroids[0].position}, velocity:{x:0,y:0,z:0}, ttl:1}];
+  test(`${geometry} jagged rocks split into smaller rocks before disappearing`, async ({page}) => {
+    const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+    await load(page);await page.locator(`input[value="${geometry}"]`).check();await start(page);
+    const rocks = () => page.evaluate(() => JSON.parse(window.render_game_to_text()).asteroids);
+    expect((await rocks()).map((a:{shape:string})=>a.shape)).toEqual(Array(4).fill('rock'));
+    await page.evaluate(()=>window.__gameDebug.forceAsteroid());
+    const counts=[];
+    for(let hit=0;hit<7;hit++) {
+      await page.evaluate(()=>{
+        const s=window.__gameDebug.getState();
+        for(const a of s.asteroids)a.velocity={x:0,y:0,z:0};
+        s.bullets=[{id:s.nextEntityId++,position:{...s.asteroids[0].position},velocity:{x:0,y:0,z:0},ttl:1}];
       });
-      await advance(page);
-      expect(await shapes()).toEqual(next ? [next] : []);
+      await advance(page);counts.push((await rocks()).length);
     }
-    expect(errors).toEqual([]);
+    expect(counts).toEqual([2,3,2,1,2,1,0]);
+    expect((await state(page)).score).toBe(520);expect(errors).toEqual([]);
   });
 }
 

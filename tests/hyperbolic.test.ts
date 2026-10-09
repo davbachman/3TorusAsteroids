@@ -190,5 +190,5 @@ test("hyperbolic shots hit large asteroid edges rather than only the center", ()
   s.nextEntityId = 3;
   for (let i = 0; i < 60 && s.score === 0; i++) stepGame(s, none, 1 / 60);
   assert.equal(s.score, 20);
-  assert.equal(s.asteroids.length, 1);
+  assert.equal(s.asteroids.length, 2);
 });
