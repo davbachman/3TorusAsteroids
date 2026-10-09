@@ -192,7 +192,10 @@ test('keyboard model selection returns steering, thrust, fire, E, and pause to t
   await load(page);await page.locator('input[value="hyperbolic"]').check();await start(page);
   const model=page.getByRole('combobox',{name:'External hyperbolic model'});
   for(const [key,value] of [['ArrowUp','klein'],['ArrowDown','poincare']]) {
-    await model.focus();await page.keyboard.press(key);await page.keyboard.press('Enter');
+    // Open the native menu explicitly: macOS does not change a closed select
+    // with the same arrow-key sequence as Chromium on Linux.
+    await model.focus();await page.keyboard.press('Space');
+    await page.keyboard.press(key);await page.keyboard.press('Enter');
     await expect(model).toHaveValue(value);await expect(model).not.toBeFocused();
   }
   await page.keyboard.down('z');await advance(page,200);await page.keyboard.up('z');
