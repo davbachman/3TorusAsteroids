@@ -1,8 +1,8 @@
-# 3TorusAsteroids
+# 3D Topology Asteroids
 
 [Play the game on GitHub Pages](https://davbachman.github.io/3TorusAsteroids/)
 
-`3TorusAsteroids` is a split-screen 3D reinterpretation of Asteroids in a choice of compact spaces:
+**3D Topology Asteroids** is a split-screen 3D reinterpretation of Asteroids in a choice of compact spaces:
 
 - **Euclidean (3-Torus)** — a cube with opposite faces identified by translation.
 - **Hyperbolic (Seifert–Weber Dodecahedral)** — a regular hyperbolic dodecahedron with opposite faces identified by a 108° twist.

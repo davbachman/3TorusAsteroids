@@ -10,7 +10,7 @@ let game: Game | undefined;
 try {
   game = new Game(root);
 } catch {
-  root.innerHTML = '<main style="padding:32px"><h1>Unable to start 3Torus Asteroids</h1><p>This game needs WebGL. Try enabling graphics acceleration or opening it in another browser.</p></main>';
+  root.innerHTML = '<main style="padding:32px"><h1>Unable to start 3D Topology Asteroids</h1><p>This game needs WebGL. Try enabling graphics acceleration or opening it in another browser.</p></main>';
 }
 
 if (import.meta.hot) {

@@ -28,7 +28,7 @@ test('keyboard, pointer steering, focus loss, mute, and restart',async({page})=>
 
 test('phone portrait and landscape layouts support multi-touch and readable menus',async({page})=>{
   await page.setViewportSize({width:390,height:844});await load(page);
-  await expect(page.getByRole('heading',{name:'3Torus Asteroids'})).toBeVisible();await start(page);
+  await expect(page.getByRole('heading',{name:'3D Topology Asteroids'})).toBeVisible();await start(page);
   const thrust=page.getByRole('button',{name:'Thrust',exact:true}),right=page.getByRole('button',{name:'Turn right',exact:true});
   const before=(await state(page)).ship;
   // Real captured pointers, including simultaneous thrust and turn.

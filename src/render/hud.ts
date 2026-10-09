@@ -51,7 +51,7 @@ export class HudRenderer {
     this.pause = this.toolbar.querySelector('[data-pause]')!;
     this.panel.className = 'game-panel';
     this.panel.setAttribute('aria-label', 'Game menu');
-    this.panel.innerHTML = `<h1>3Torus Asteroids</h1><p data-message></p>
+    this.panel.innerHTML = `<h1>3D Topology Asteroids</h1><p data-message></p>
       <fieldset class="geometry-choices"><legend>Choose your geometry</legend>
       <label><input type="radio" name="geometry" value="euclidean" checked> <span>Euclidean (3-Torus)</span></label>
       <label><input type="radio" name="geometry" value="hyperbolic"> <span>Hyperbolic (Seifert–Weber Dodecahedral)</span></label>
